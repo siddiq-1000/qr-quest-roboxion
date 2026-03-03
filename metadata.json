@@ -1,0 +1,5 @@
+{
+  "name": "QR Quest: Makeup Challenge",
+  "description": "A QR-code based scavenger hunt for makeup teams with real-time tracking and admin oversight.",
+  "requestFramePermissions": ["camera"]
+}
