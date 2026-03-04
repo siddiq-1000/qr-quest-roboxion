@@ -72,7 +72,8 @@ const Task = mongoose.model('Task', new mongoose.Schema({
   image_required: { type: Number, default: 1 },
   section_name: { type: String, default: '' },
   form_template: { type: String, default: '[]' },
-  next_clue_hint: { type: String, default: '' }
+  next_clue_hint: { type: String, default: '' },
+  unlock_passcode: { type: String, default: '' }
 }, { toJSON: { virtuals: true } }));
 
 const SubTask = mongoose.model('SubTask', new mongoose.Schema({
@@ -136,9 +137,9 @@ const seedDatabase = async () => {
 
   if (await Task.countDocuments() === 0) {
     await Task.insertMany([
-      { slug: "qr-code-1", name: "Task One", task_description: "Complete the initial makeup challenge.", sequence_order: 1 },
-      { slug: "qr-code-2", name: "Task Two", task_description: "Second phase of the challenge.", sequence_order: 2 },
-      { slug: "qr-code-3", name: "Task Three", task_description: "Finalizing the look.", sequence_order: 3 }
+      { slug: "qr-code-1", name: "Task One", task_description: "Complete the initial makeup challenge.", sequence_order: 1, unlock_passcode: "A" },
+      { slug: "qr-code-2", name: "Task Two", task_description: "Second phase of the challenge.", sequence_order: 2, unlock_passcode: "B" },
+      { slug: "qr-code-3", name: "Task Three", task_description: "Finalizing the look.", sequence_order: 3, unlock_passcode: "C" }
     ]);
   }
 };
@@ -187,7 +188,9 @@ app.post("/api/admin/settings", async (req, res) => {
     if (game_status !== undefined) {
       await Setting.findOneAndUpdate({ key: "game_status" }, { value: game_status }, { upsert: true });
       if (game_status === 'active') {
-        await Setting.findOneAndUpdate({ key: "game_start_time" }, { value: new Date().toISOString() }, { upsert: true });
+        const timestamp = new Date().toISOString();
+        await Setting.findOneAndUpdate({ key: "game_start_time" }, { value: timestamp }, { upsert: true });
+        broadcast({ type: "GLOBAL_EVENT", eventType: "game_start", timestamp });
       }
     }
     broadcast({ type: "SETTINGS_UPDATE" });
@@ -319,7 +322,8 @@ app.post("/api/admin/qr-tasks", async (req, res) => {
       sequence_order: req.body.sequence_order || 0,
       is_checkpoint: req.body.is_checkpoint ? 1 : 0,
       is_active: req.body.is_active === undefined ? 1 : (req.body.is_active ? 1 : 0),
-      image_required: req.body.image_required === undefined ? 1 : (req.body.image_required ? 1 : 0)
+      image_required: req.body.image_required === undefined ? 1 : (req.body.image_required ? 1 : 0),
+      unlock_passcode: req.body.unlock_passcode || ''
     });
     const teams = await Team.find();
     if (teams.length > 0) {
@@ -336,7 +340,8 @@ app.patch("/api/admin/qr-tasks/:id", async (req, res) => {
       sequence_order: req.body.sequence_order || 0,
       is_checkpoint: req.body.is_checkpoint ? 1 : 0,
       is_active: req.body.is_active === undefined ? 1 : (req.body.is_active ? 1 : 0),
-      image_required: req.body.image_required === undefined ? 1 : (req.body.image_required ? 1 : 0)
+      image_required: req.body.image_required === undefined ? 1 : (req.body.image_required ? 1 : 0),
+      unlock_passcode: req.body.unlock_passcode || ''
     });
     res.json({ success: true });
   } catch (e) { res.status(400).json({ error: "Failed" }); }
@@ -437,14 +442,14 @@ app.get("/api/admin/leaderboard", async (req, res) => {
 
   const leaderboard = [];
   for (const task of tasks) {
-    const firstScan = await Log.findOne({ type: 'scan', qr_task_id: task._id }).sort({ timestamp: 1 }).lean();
-    const firstComplete = await Log.findOne({ type: 'complete', qr_task_id: task._id }).sort({ timestamp: 1 }).lean();
+    const topScans = await Log.find({ type: 'scan', qr_task_id: task._id }).sort({ timestamp: 1 }).limit(3).lean();
+    const topCompletes = await Log.find({ type: 'complete', qr_task_id: task._id }).sort({ timestamp: 1 }).limit(3).lean();
 
     leaderboard.push({
       taskId: task._id,
       taskName: task.name,
-      firstScan: firstScan ? { ...firstScan, team_name: teamMap.get(firstScan.team_id) } : null,
-      firstComplete: firstComplete ? { ...firstComplete, team_name: teamMap.get(firstComplete.team_id) } : null
+      topScans: topScans.map(s => ({ ...s, team_name: teamMap.get(s.team_id) })),
+      topCompletes: topCompletes.map(c => ({ ...c, team_name: teamMap.get(c.team_id) }))
     });
   }
   res.json(leaderboard);
@@ -504,9 +509,24 @@ app.post("/api/team/sub-tasks/:id/toggle", async (req, res) => {
 });
 
 app.post("/api/team/validate-qr", async (req, res) => {
-  const task = await Task.findOne({ slug: req.body.slug }).lean();
-  if (task) res.json({ success: true, task: { ...task, id: task._id } });
-  else res.status(404).json({ error: "Invalid QR sequence" });
+  const { teamId, slug } = req.body;
+  const task = await Task.findOne({ slug }).lean();
+
+  if (!task) return res.status(404).json({ error: "Invalid QR sequence" });
+  if (task.is_active === 0) return res.status(400).json({ error: "This task is inactive." });
+
+  const allActiveTasks = await Task.find({ is_active: 1 }).sort({ sequence_order: 1 }).lean();
+  const taskIndex = allActiveTasks.findIndex(t => t._id.toString() === task._id.toString());
+
+  if (taskIndex > 0) {
+    const previousTask = allActiveTasks[taskIndex - 1];
+    const prevProgress = await Progress.findOne({ team_id: teamId, qr_task_id: previousTask._id });
+    if (!prevProgress || prevProgress.status !== 'completed') {
+      return res.status(403).json({ error: `You must complete ${previousTask.name} before scanning this QR code.` });
+    }
+  }
+
+  res.json({ success: true, task: { ...task, id: task._id } });
 });
 
 app.post("/api/team/scan", async (req, res) => {
@@ -518,10 +538,12 @@ app.post("/api/team/scan", async (req, res) => {
   );
   await Log.create({ team_id: teamId, type: "scan", qr_task_id: qrTaskId, timestamp });
   const team = await Team.findOne({ id: teamId });
+  const task = await Task.findById(qrTaskId);
   broadcast({
     type: "LOG_UPDATE",
     log: { team_id: teamId, team_name: team?.name, type: "scan", qr_task_id: qrTaskId, timestamp }
   });
+  broadcast({ type: "GLOBAL_EVENT", eventType: "scan", teamName: team?.name, taskName: task?.name, timestamp });
   res.json({ success: true });
 });
 
@@ -543,6 +565,9 @@ app.post("/api/team/submit", upload.single("image"), async (req, res) => {
     type: "LOG_UPDATE",
     log: { team_id: teamId, team_name: team?.name, type: "complete", qr_task_id: qrTaskId, timestamp }
   });
+  if (newStatus === 'completed') {
+    broadcast({ type: "GLOBAL_EVENT", eventType: "complete", teamName: team?.name, taskName: task?.name, timestamp });
+  }
 
   // Check winner condition
   const tasksAll = await Task.find({ is_active: 1 }).distinct('_id');

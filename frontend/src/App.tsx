@@ -251,6 +251,16 @@ export default function App() {
       if (data.type === 'SETTINGS_UPDATE') {
         fetchSettings();
       }
+      if (data.type === 'GLOBAL_EVENT') {
+        const timeStr = new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (data.eventType === 'game_start') {
+          showToast(`🚀 THE HUNT HAS BEGUN! (${timeStr})`, 'success');
+        } else if (data.eventType === 'scan') {
+          showToast(`⚡ Team ${data.teamName} reached ${data.taskName} (${timeStr})`, 'info');
+        } else if (data.eventType === 'complete') {
+          showToast(`✅ Team ${data.teamName} completed ${data.taskName}! (${timeStr})`, 'success');
+        }
+      }
       if (data.type === 'WINNER_ANNOUNCED') {
         const p = data.placement;
         setWinnerTeam({ name: data.teamName, placement: p });
@@ -515,7 +525,7 @@ export default function App() {
     }
 
     try {
-      const { task } = await api.team.validateQr(slug);
+      const { task } = await api.team.validateQr(user?.id || '', slug);
 
       // Check if already completed
       const p = progress.find(item => item.qr_task_id === task.id);
@@ -685,11 +695,12 @@ export default function App() {
     const image_required = formData.get('image_required') ? 1 : 0;
     const section_name = formData.get('section_name') as string;
     const next_clue_hint = formData.get('next_clue_hint') as string;
+    const unlock_passcode = formData.get('unlock_passcode') as string || '';
 
     try {
       await api.admin.updateTask(editingTask.id, {
         name, slug, task_description, sequence_order,
-        is_checkpoint, is_active, section_name, image_required, next_clue_hint,
+        is_checkpoint, is_active, section_name, image_required, next_clue_hint, unlock_passcode,
         form_template: JSON.stringify(editingFormTemplate)
       });
       fetchQrTasks();
@@ -697,7 +708,7 @@ export default function App() {
       // Update local editingTask to reflect changes without closing tab
       setEditingTask(prev => prev ? {
         ...prev, name, slug, task_description, sequence_order,
-        is_checkpoint, is_active, section_name, image_required, next_clue_hint,
+        is_checkpoint, is_active, section_name, image_required, next_clue_hint, unlock_passcode,
         form_template: JSON.stringify(editingFormTemplate)
       } : null);
     } catch (err: any) {
@@ -1045,45 +1056,57 @@ export default function App() {
                   <h2 className="text-lg font-bold text-zinc-900">Admin Control Panel</h2>
                 </div>
 
-                <div className="relative">
-                  <select
-                    value={adminTab}
-                    onChange={(e) => {
-                      const id = e.target.value;
-                      setAdminTab(id);
-                      if (id.startsWith('task-')) {
-                        const taskIdStr = id.split('-')[1];
-                        if (taskIdStr) {
-                          const task = qrTasks.find(t => String(t.id) === taskIdStr);
-                          if (task) {
-                            setEditingTask(task);
-                            setEditingFormTemplate(task.form_template ? JSON.parse(task.form_template) : []);
-                            fetchSubTasks(task.id);
-                          }
-                        }
-                      } else {
-                        setEditingTask(null);
-                        setEditingFormTemplate([]);
-                      }
-                    }}
-                    className="w-full sm:w-64 appearance-none rounded-lg border border-zinc-200 bg-white px-4 py-2 pr-10 text-sm font-bold shadow-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
-                  >
-                    <option value="summary">Summary & Progress</option>
-                    <option value="teams">Teams Management</option>
-                    <option value="logs">Activity Logs</option>
-                    <option value="setup">Game Setup</option>
-                    <option value="submissions">Submissions</option>
-                    <option value="leaderboard">Leaderboard</option>
-                    <optgroup label="Tasks">
-                      {qrTasks.map(t => (
-                        <option key={t.id} value={`task-${t.id}`}>{t.name}</option>
-                      ))}
-                    </optgroup>
-                    <option value="add-task">+ Create New Task</option>
-                    <option value="create-passcode">+ Create your key or passcode</option>
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-500">
-                    <ChevronRight size={16} className="rotate-90" />
+                <div className="flex w-full flex-col gap-4">
+                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-100 bg-white p-2 shadow-sm">
+                    <Button variant={adminTab === 'summary' ? 'default' : 'ghost'} size="sm" onClick={() => setAdminTab('summary')}>Summary</Button>
+                    <Button variant={adminTab === 'teams' ? 'default' : 'ghost'} size="sm" onClick={() => setAdminTab('teams')}>Teams</Button>
+                    <Button variant={adminTab === 'logs' ? 'default' : 'ghost'} size="sm" onClick={() => setAdminTab('logs')}>Logs</Button>
+                    <Button variant={adminTab === 'setup' ? 'default' : 'ghost'} size="sm" onClick={() => setAdminTab('setup')}>Setup</Button>
+                    <Button variant={adminTab === 'submissions' ? 'default' : 'ghost'} size="sm" onClick={() => setAdminTab('submissions')}>Submissions</Button>
+                    <Button variant={adminTab === 'leaderboard' ? 'default' : 'ghost'} size="sm" onClick={() => setAdminTab('leaderboard')}>Leaderboard</Button>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-zinc-100 bg-zinc-50/50 p-4 shadow-sm">
+                    <div className="flex w-full sm:w-auto items-center gap-3">
+                      <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">Edit Tasks</span>
+                      <div className="relative flex-1 sm:w-64">
+                        <select
+                          value={adminTab.startsWith('task-') ? adminTab : ''}
+                          onChange={(e) => {
+                            const id = e.target.value;
+                            if (!id) return;
+                            setAdminTab(id);
+                            const taskIdStr = id.split('-')[1];
+                            if (taskIdStr) {
+                              const task = qrTasks.find(t => String(t.id) === taskIdStr);
+                              if (task) {
+                                setEditingTask(task);
+                                setEditingFormTemplate(task.form_template ? JSON.parse(task.form_template) : []);
+                                fetchSubTasks(task.id);
+                              }
+                            }
+                          }}
+                          className="w-full appearance-none rounded-lg border border-zinc-200 bg-white px-4 py-2 pr-10 text-sm font-bold shadow-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
+                        >
+                          <option value="" disabled>Select a task...</option>
+                          {qrTasks.map(t => (
+                            <option key={t.id} value={`task-${t.id}`}>{t.name}</option>
+                          ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-500">
+                          <ChevronRight size={16} className="rotate-90" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex w-full sm:w-auto items-center gap-2">
+                      <Button variant={adminTab === 'add-task' ? 'default' : 'outline'} size="sm" onClick={() => { setAdminTab('add-task'); setEditingTask(null); }} className="flex-1 sm:flex-none border-black">
+                        <Plus size={14} className="mr-1" /> Add Task
+                      </Button>
+                      <Button variant={adminTab === 'create-passcode' ? 'default' : 'outline'} size="sm" onClick={() => { setAdminTab('create-passcode'); setEditingTask(null); }} className="flex-1 sm:flex-none border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100">
+                        <Key size={14} className="mr-1" /> Add Final Vault
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1425,6 +1448,7 @@ export default function App() {
 
                       <input autoComplete="off" name="task_description" defaultValue={editingTask.task_description} placeholder="Description" className="rounded-lg border border-zinc-200 px-3 py-2 text-sm sm:col-span-2" required />
                       <input autoComplete="off" name="next_clue_hint" defaultValue={editingTask.next_clue_hint || ''} placeholder="Next Clue Hint (Shown exactly after completing this task)" className="rounded-lg border border-zinc-200 px-3 py-2 text-sm sm:col-span-4" />
+                      <input autoComplete="off" name="unlock_passcode" defaultValue={editingTask.unlock_passcode || ''} placeholder="Passcode (Given to team on completion)" className="rounded-lg border border-zinc-200 px-3 py-2 text-sm sm:col-span-4" />
 
                       <div className="sm:col-span-4 mt-4 border-t border-zinc-100 pt-4">
                         <div className="flex justify-between items-center mb-4">
@@ -1581,11 +1605,18 @@ export default function App() {
 
                         <div className="space-y-4">
                           <div className="rounded-lg bg-emerald-50 p-3 border border-emerald-100">
-                            <span className="block text-[10px] font-bold uppercase text-emerald-600">First Scan (Started)</span>
-                            {item.firstScan ? (
-                              <div className="mt-1">
-                                <span className="block text-sm font-bold text-emerald-900">{item.firstScan.team_name}</span>
-                                <span className="text-[10px] font-mono text-emerald-500">{formatTime(item.firstScan.timestamp)}</span>
+                            <span className="mb-2 block text-[10px] font-bold uppercase text-emerald-600">Top 3 Scans (Started)</span>
+                            {item.topScans && item.topScans.length > 0 ? (
+                              <div className="space-y-2">
+                                {item.topScans.map((scan, i) => (
+                                  <div key={i} className={cn("flex items-center justify-between rounded p-2 text-sm border", i === 0 ? "bg-yellow-100 text-yellow-900 border-yellow-300 font-bold" : i === 1 ? "bg-slate-200 text-slate-800 border-slate-300" : "bg-orange-100/50 text-orange-900 border-orange-200")}>
+                                    <div className="flex items-center gap-2">
+                                      <span>{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
+                                      <span className="truncate max-w-[100px]">{scan.team_name}</span>
+                                    </div>
+                                    <span className="font-mono text-[10px] opacity-80">{formatTime(scan.timestamp)}</span>
+                                  </div>
+                                ))}
                               </div>
                             ) : (
                               <span className="mt-1 block text-xs italic text-emerald-400">No scans yet</span>
@@ -1593,14 +1624,21 @@ export default function App() {
                           </div>
 
                           <div className="rounded-lg bg-amber-50 p-3 border border-amber-100">
-                            <span className="block text-[10px] font-bold uppercase text-amber-600">First Completion</span>
-                            {item.firstComplete ? (
-                              <div className="mt-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="block text-sm font-bold text-amber-900">{item.firstComplete.team_name}</span>
-                                  <Trophy size={12} className="text-amber-500" />
-                                </div>
-                                <span className="text-[10px] font-mono text-amber-500">{formatTime(item.firstComplete.timestamp)}</span>
+                            <span className="mb-2 block text-[10px] font-bold uppercase text-amber-600">Top 3 Completions</span>
+                            {item.topCompletes && item.topCompletes.length > 0 ? (
+                              <div className="space-y-2">
+                                {item.topCompletes.map((comp, i) => (
+                                  <div key={i} className={cn("flex items-center justify-between rounded p-2 text-sm border", i === 0 ? "bg-yellow-100 text-yellow-900 border-yellow-300 font-bold textShadow-sm" : i === 1 ? "bg-slate-200 text-slate-800 border-slate-300" : "bg-orange-100/50 text-orange-900 border-orange-200")}>
+                                    <div className="flex items-center gap-2">
+                                      <span>{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
+                                      <span className="truncate max-w-[100px]">{comp.team_name}</span>
+                                    </div>
+                                    <span className="font-mono text-[10px] opacity-80 flex items-center gap-1">
+                                      <Trophy size={10} className={i === 0 ? "text-yellow-600" : "opacity-50"} />
+                                      {formatTime(comp.timestamp)}
+                                    </span>
+                                  </div>
+                                ))}
                               </div>
                             ) : (
                               <span className="mt-1 block text-xs italic text-amber-400">Not completed yet</span>
@@ -2144,6 +2182,12 @@ export default function App() {
                             <div className="mt-4 w-full rounded bg-emerald-50/50 p-3 text-sm text-emerald-800 border border-emerald-100 flex items-start gap-2">
                               <span className="font-bold text-emerald-600 mt-0.5 whitespace-nowrap">NEXT CLUE:</span>
                               <p className="leading-snug">{task.next_clue_hint}</p>
+                            </div>
+                          )}
+                          {isCompleted && task.unlock_passcode && (
+                            <div className="mt-2 w-full rounded bg-amber-50/50 p-3 text-sm text-amber-800 border border-amber-200 flex flex-col items-center justify-center gap-1">
+                              <span className="font-bold text-[10px] tracking-widest text-amber-600 uppercase">Secret Passcode Unlocked</span>
+                              <p className="text-xl font-mono font-black tracking-[0.2em]">{task.unlock_passcode}</p>
                             </div>
                           )}
                         </button>

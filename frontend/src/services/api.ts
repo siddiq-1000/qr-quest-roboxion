@@ -38,6 +38,7 @@ export interface QRTask {
   form_template?: string;
   image_required?: number;
   next_clue_hint?: string;
+  unlock_passcode?: string;
 }
 
 export interface Stats {
@@ -51,8 +52,8 @@ export interface Stats {
 export interface LeaderboardItem {
   taskId: number;
   taskName: string;
-  firstScan: Log | null;
-  firstComplete: Log | null;
+  topScans: (Log & { team_name: string })[];
+  topCompletes: (Log & { team_name: string })[];
 }
 
 export interface Submission {
@@ -189,11 +190,11 @@ export const api = {
 
     getProgress: (teamId: string) => fetch(`${API_BASE_URL}/api/team/${teamId}/progress`).then(handleResponse<Progress[]>),
 
-    validateQr: (slug: string) =>
+    validateQr: (teamId: string, slug: string) =>
       fetch(`${API_BASE_URL}/api/team/validate-qr`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug }),
+        body: JSON.stringify({ teamId, slug }),
       }).then(handleResponse<{ success: boolean; task: QRTask }>),
 
     scanQr: (teamId: string, qrTaskId: number) =>
