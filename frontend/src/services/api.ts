@@ -84,7 +84,7 @@ export interface SubTask {
   is_completed?: number; // For team view
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {

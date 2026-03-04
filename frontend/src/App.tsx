@@ -224,8 +224,11 @@ export default function App() {
 
   // WebSocket Setup
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}`);
+    // If VITE_API_URL is set (e.g., http://192.168.1.5:3000), use its hostname/port for WS.
+    // Otherwise, fallback explicitly to localhost:3000 where our split Node backend lives.
+    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const wsUrl = apiBase.replace(/^http/, 'ws');
+    const socket = new WebSocket(wsUrl);
 
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
