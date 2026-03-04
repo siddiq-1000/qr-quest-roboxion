@@ -149,7 +149,11 @@ const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
-app.use(cors({ origin: '*' }));
+app.use(cors({
+  origin: ['http://localhost:5173', 'https://qr-quest-roboxion.vercel.app', 'http://localhost:3000'],
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  credentials: true
+}));
 app.use(express.json());
 app.use("/uploads", express.static(uploadsDir));
 
