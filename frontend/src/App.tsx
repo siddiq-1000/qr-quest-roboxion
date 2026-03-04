@@ -139,7 +139,7 @@ const Scanner = ({ onScan, onClose }: { onScan: (data: string) => void; onClose:
   );
 };
 
-const CountdownTimer = ({ settings }: { settings: GameSettings | null }) => {
+const CountdownTimer = ({ settings, showToast }: { settings: GameSettings | null, showToast?: (m: string, t: 'success' | 'error' | 'info') => void }) => {
   const [timeLeft, setTimeLeft] = useState<string>('--:--:--');
 
   useEffect(() => {
@@ -169,10 +169,21 @@ const CountdownTimer = ({ settings }: { settings: GameSettings | null }) => {
       setTimeLeft(
         `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
       );
+
+      // Notify every 10 minutes, and also at the 5-minute warning, if exactly at 0 seconds
+      if (((minutes > 0 && minutes % 10 === 0) || minutes === 5) && seconds === 0) {
+        // We use a custom event to broadcast this locally or rely on server.
+        // For simplicity, since the timer runs on the client, we just show a local toast.
+        // However, to ensure it doesn't spam, we trigger it only exactly at second 0.
+        if (showToast) {
+          showToast(`⏳ Time Update: You have ${minutes} minutes remaining!`, 'info');
+        }
+      }
+
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [settings]);
+  }, [settings, showToast]);
 
   return (
     <div className="flex flex-col items-center justify-center rounded-xl bg-red-600 p-4 text-white shadow-lg ring-4 ring-red-500/20">
@@ -1048,8 +1059,14 @@ export default function App() {
               animate={{ opacity: 1 }}
               className="space-y-8"
             >
-              <div className="mb-8 p-4 bg-white rounded-xl shadow-sm border border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
+              {settings?.game_status === 'active' && (
+                <div className="flex w-full items-center justify-center">
+                  <CountdownTimer settings={settings} showToast={showToast} />
+                </div>
+              )}
+
+              <div className="mb-8 p-4 bg-white rounded-xl shadow-sm border border-zinc-100 flex flex-col md:flex-row justify-between gap-4">
+                <div className="flex items-center gap-2 mb-4 md:mb-0">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black text-white">
                     <Activity size={16} />
                   </div>
@@ -1972,7 +1989,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {settings?.game_status === 'active' && <CountdownTimer settings={settings} />}
+                    {settings?.game_status === 'active' && <CountdownTimer settings={settings} showToast={showToast} />}
 
                     <div className="flex items-center gap-8">
                       <div className="text-center">
