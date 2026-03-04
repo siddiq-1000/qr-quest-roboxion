@@ -1341,6 +1341,14 @@ export default function App() {
                         if (passcode.length !== 4) throw new Error("Passcode must be exactly 4 characters");
                         await api.admin.updateSettings({ secret_passcode: passcode.toUpperCase() });
 
+                        const existingTask = qrTasks.find(t => t.slug === 'final-passcode-check');
+                        if (existingTask) {
+                          await fetchSettings();
+                          setAdminTab('summary');
+                          showToast("Final passcode updated successfully!", "success");
+                          return;
+                        }
+
                         const response = await api.admin.createTask({
                           name: "The Final Vault",
                           slug: "final-passcode-check",
@@ -1363,7 +1371,7 @@ export default function App() {
                           showToast("Final passcode task spawned successfully!", "success");
                         }
                       } catch (err: any) {
-                        showToast(err.message || 'Error creating task. The slug "final-passcode-check" might already exist.', 'error');
+                        showToast(err.message || 'Error updating or creating the task.', 'error');
                       }
                     }} className="space-y-4">
                       <div>
@@ -1379,7 +1387,9 @@ export default function App() {
                         <p className="mt-1 text-xs text-zinc-400">This 4-letter code will be split among the teams you create.</p>
                       </div>
                       <div className="flex justify-end">
-                        <Button type="submit" className="bg-amber-500 hover:bg-amber-600 text-white">Spawn Final Passcode Task</Button>
+                        <Button type="submit" className="bg-amber-500 hover:bg-amber-600 text-white">
+                          {qrTasks.find(t => t.slug === 'final-passcode-check') ? 'Update Final Passcode' : 'Spawn Final Passcode Task'}
+                        </Button>
                       </div>
                     </form>
                   </Card>
