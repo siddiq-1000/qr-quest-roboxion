@@ -1067,6 +1067,7 @@ export default function App() {
                     className="w-full sm:w-64 appearance-none rounded-lg border border-zinc-200 bg-white px-4 py-2 pr-10 text-sm font-bold shadow-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
                   >
                     <option value="summary">Summary & Progress</option>
+                    <option value="teams">Teams Management</option>
                     <option value="logs">Activity Logs</option>
                     <option value="setup">Game Setup</option>
                     <option value="submissions">Submissions</option>
