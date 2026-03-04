@@ -40,6 +40,8 @@ db.exec(`
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     password TEXT NOT NULL,
+    secret_character TEXT,
+    secret_index INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -125,6 +127,7 @@ if (settingsCount.count === 0) {
 // Migration: Ensure columns exist for older databases
 const migrate = () => {
   const tables = {
+    teams: ['secret_character', 'secret_index'],
     logs: ['qr_task_id'],
     progress: ['status', 'qr_task_id'],
     submissions: ['status', 'qr_task_id'],
@@ -155,6 +158,10 @@ const migrate = () => {
             db.exec(`ALTER TABLE ${table} ADD COLUMN section_name TEXT DEFAULT ''`);
           } else if (column === 'form_template') {
             db.exec(`ALTER TABLE ${table} ADD COLUMN form_template TEXT DEFAULT '[]'`);
+          } else if (column === 'secret_character') {
+            db.exec(`ALTER TABLE ${table} ADD COLUMN secret_character TEXT`);
+          } else if (column === 'secret_index') {
+            db.exec(`ALTER TABLE ${table} ADD COLUMN secret_index INTEGER`);
           }
         } catch (e) {
           console.error(`Migration failed for ${table}.${column}:`, e);
@@ -276,9 +283,15 @@ async function startServer() {
   });
 
   app.post("/api/admin/settings", (req, res) => {
-    const { duration, game_status } = req.body;
+    const { duration, game_status, secret_passcode } = req.body;
     try {
       if (duration !== undefined) {
+        db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run("duration", duration.toString());
+      }
+      if (secret_passcode !== undefined) {
+        db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run("secret_passcode", secret_passcode.toString());
+      }
+      if (game_status !== undefined) {
         db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run("duration", duration.toString());
       }
       if (game_status !== undefined) {
@@ -364,7 +377,21 @@ async function startServer() {
     const { name, password } = req.body;
     const id = name.toLowerCase().replace(/\s+/g, "-");
     try {
-      db.prepare("INSERT INTO teams (id, name, password) VALUES (?, ?, ?)").run(id, name, password);
+      // Fetch the secret passcode if it exists
+      const settings = db.prepare("SELECT value FROM settings WHERE key = 'secret_passcode'").get() as { value: string } | undefined;
+      let secret_character = null;
+      let secret_index = null;
+
+      // Assign a random character from the secret code to this team
+      if (settings && settings.value && settings.value.length > 0) {
+        const code = settings.value;
+        const index = Math.floor(Math.random() * code.length);
+        secret_character = code[index];
+        secret_index = index + 1; // 1-indexed for the UI display
+      }
+
+      db.prepare("INSERT INTO teams (id, name, password, secret_character, secret_index) VALUES (?, ?, ?, ?, ?)").run(id, name, password, secret_character, secret_index);
+
       // Initialize progress for all tasks
       const tasks = db.prepare("SELECT id FROM qr_tasks").all() as { id: number }[];
       const insertProgress = db.prepare("INSERT INTO progress (team_id, qr_task_id) VALUES (?, ?)");
@@ -372,6 +399,7 @@ async function startServer() {
 
       res.json({ success: true, team: { id, name } });
     } catch (e) {
+      console.error(e);
       res.status(400).json({ error: "Team already exists or invalid data" });
     }
   });

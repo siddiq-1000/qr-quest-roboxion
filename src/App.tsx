@@ -1291,7 +1291,7 @@ export default function App() {
 
                   <Card className="border-blue-500">
                     <h3 className="mb-4 font-bold">Edit Task Details</h3>
-                    <form onSubmit={handleUpdateTask} className="grid gap-4 sm:grid-cols-4">
+                    <form key={editingTask.id} onSubmit={handleUpdateTask} className="grid gap-4 sm:grid-cols-4">
                       <input autoComplete="off" name="name" defaultValue={editingTask.name} placeholder="Task Name" className="rounded-lg border border-zinc-200 px-3 py-2 text-sm" required />
                       <input autoComplete="off" name="slug" defaultValue={editingTask.slug} placeholder="Slug" className="rounded-lg border border-zinc-200 px-3 py-2 text-sm" required />
                       <input autoComplete="off" name="section_name" defaultValue={editingTask.section_name || ''} placeholder="Section Name" className="rounded-lg border border-zinc-200 px-3 py-2 text-sm" />
