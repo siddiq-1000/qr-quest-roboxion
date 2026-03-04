@@ -1052,12 +1052,15 @@ export default function App() {
                       const id = e.target.value;
                       setAdminTab(id);
                       if (id.startsWith('task-')) {
-                        const taskId = parseInt(id.split('-')[1]);
-                        const task = qrTasks.find(t => t.id === taskId);
-                        if (task) {
-                          setEditingTask(task);
-                          setEditingFormTemplate(task.form_template ? JSON.parse(task.form_template) : []);
-                          fetchSubTasks(task.id);
+                        const taskIdStr = id.split('-')[1];
+                        if (taskIdStr) {
+                          const taskId = parseInt(taskIdStr);
+                          const task = qrTasks.find(t => t.id === taskId);
+                          if (task) {
+                            setEditingTask(task);
+                            setEditingFormTemplate(task.form_template ? JSON.parse(task.form_template) : []);
+                            fetchSubTasks(task.id);
+                          }
                         }
                       } else {
                         setEditingTask(null);
