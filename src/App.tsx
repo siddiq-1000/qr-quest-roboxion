@@ -651,14 +651,21 @@ export default function App() {
     const name = formData.get('name') as string;
     const slug = formData.get('slug') as string;
     const task_description = formData.get('task_description') as string;
-    const sequence_order = parseInt(formData.get('sequence_order') as string);
+    const sequence_order = parseInt(formData.get('sequence_order') as string) || 0;
+    const is_checkpoint = formData.get('is_checkpoint') ? 1 : 0;
+    const is_active = formData.get('is_active') ? 1 : 0;
+    const image_required = formData.get('image_required') ? 1 : 0;
+    const section_name = formData.get('section_name') as string;
 
     try {
-      await api.admin.createTask({ name, slug, task_description, sequence_order });
+      await api.admin.createTask({
+        name, slug, task_description, sequence_order,
+        is_checkpoint, is_active, section_name, image_required
+      });
       fetchQrTasks();
       setIsAddingTask(false);
     } catch (err: any) {
-      alert(err.message || 'Error creating task. Slug might already exist.');
+      showToast(err.message || 'Error creating task. Slug might already exist.', 'error');
     }
   };
 

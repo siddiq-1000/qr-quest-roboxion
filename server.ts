@@ -7,6 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import fs from "fs";
+import cors from "cors";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const db = new Database("qr_quest.db");
@@ -192,6 +193,7 @@ async function startServer() {
   const server = createServer(app);
   const wss = new WebSocketServer({ server });
 
+  app.use(cors({ origin: '*' }));
   app.use(express.json());
   app.use("/uploads", express.static(uploadsDir));
 
@@ -663,19 +665,8 @@ async function startServer() {
     res.json({ success: true, status: newStatus });
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
-    });
-  }
+  // Since we are running Frontend (Vite) on port 5173, Backend on 3000
+  // we no longer serve the Vite bundle or API on the same port in development.
 
   const PORT = 3000;
   server.listen(PORT, "0.0.0.0", () => {
