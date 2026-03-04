@@ -23,7 +23,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import jsQR from 'jsqr';
-import { api, Team, Log, Progress, QRTask, Stats, LeaderboardItem, GameSettings, Submission, SubTask } from './services/api';
+import { api, Team, Log, Progress, QRTask, Stats, LeaderboardItem, GameSettings, Submission, SubTask, API_BASE_URL } from './services/api';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -775,7 +775,7 @@ export default function App() {
     }
   };
 
-  const handleReviewSubmission = async (id: number, status: 'approved' | 'rejected') => {
+  const handleReviewSubmission = async (id: string | number, status: 'approved' | 'rejected') => {
     try {
       await api.admin.reviewSubmission(id, status);
       fetchSubmissions();
@@ -1774,7 +1774,7 @@ export default function App() {
                         {sub.image_path ? (
                           <div className="aspect-video w-full overflow-hidden bg-zinc-100">
                             <img
-                              src={sub.image_path}
+                              src={sub.image_path.startsWith('http') ? sub.image_path : `${API_BASE_URL}${sub.image_path}`}
                               alt={`Submission from ${sub.team_name}`}
                               className="h-full w-full object-cover"
                               referrerPolicy="no-referrer"

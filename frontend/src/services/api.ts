@@ -85,7 +85,7 @@ export interface SubTask {
   is_completed?: number; // For team view
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://qr-quest-roboxion.onrender.com');
+export const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://qr-quest-roboxion.onrender.com');
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -146,7 +146,7 @@ export const api = {
       fetch(`${API_BASE_URL}/api/admin/qr-tasks/${id}`, { method: 'DELETE' }).then(handleResponse<{ success: boolean }>),
 
     getSubmissions: () => fetch(`${API_BASE_URL}/api/admin/submissions`).then(handleResponse<Submission[]>),
-    reviewSubmission: (id: number, status: 'approved' | 'rejected') =>
+    reviewSubmission: (id: string | number, status: 'approved' | 'rejected') =>
       fetch(`${API_BASE_URL}/api/admin/submissions/${id}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
