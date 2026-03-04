@@ -1054,8 +1054,7 @@ export default function App() {
                       if (id.startsWith('task-')) {
                         const taskIdStr = id.split('-')[1];
                         if (taskIdStr) {
-                          const taskId = parseInt(taskIdStr);
-                          const task = qrTasks.find(t => t.id === taskId);
+                          const task = qrTasks.find(t => String(t.id) === taskIdStr);
                           if (task) {
                             setEditingTask(task);
                             setEditingFormTemplate(task.form_template ? JSON.parse(task.form_template) : []);
