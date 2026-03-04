@@ -2024,15 +2024,18 @@ export default function App() {
                   )}
 
                   <div className="grid gap-6 md:grid-cols-3">
-                    <Card className="md:col-span-2">
-                      <div className="mb-6 flex items-center justify-between">
+                    <Card className="mb-8 border-none bg-zinc-900 text-white p-6 shadow-2xl overflow-hidden relative">
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl -mr-20 -mt-20"></div>
+                      <div className="absolute bottom-0 left-0 w-40 h-40 bg-white opacity-5 rounded-full blur-2xl -ml-10 -mb-10"></div>
+
+                      <div className="relative z-10 flex items-center justify-between mb-6">
                         <div>
                           <h2 className="text-2xl font-bold">Your Progress</h2>
                           <p className="text-sm text-zinc-500">Scan QR codes to unlock your next challenge</p>
                         </div>
                         <div className="text-right">
                           <div className="text-3xl font-bold">
-                            {progress.filter(p => p.status === 'completed' && qrTasks.find(t => t.id === p.qr_task_id)?.is_active !== 0).length}/{progress.filter(p => qrTasks.find(t => t.id === p.qr_task_id)?.is_active !== 0).length}
+                            {progress.filter(p => p.status === 'completed' && qrTasks.find(t => t.id === p.qr_task_id && t.slug !== 'final-passcode-check')?.is_active !== 0).length}/{progress.filter(p => { const t = qrTasks.find(x => x.id === p.qr_task_id); return t && t.is_active !== 0 && t.slug !== 'final-passcode-check'; }).length}
                           </div>
                           <div className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tasks Done</div>
                         </div>
@@ -2041,7 +2044,7 @@ export default function App() {
                         <motion.div
                           className="h-full bg-black"
                           initial={{ width: 0 }}
-                          animate={{ width: `${(progress.filter(p => p.status === 'completed' && qrTasks.find(t => t.id === p.qr_task_id)?.is_active !== 0).length / (progress.filter(p => qrTasks.find(t => t.id === p.qr_task_id)?.is_active !== 0).length || 1)) * 100}%` }}
+                          animate={{ width: `${(progress.filter(p => p.status === 'completed' && qrTasks.find(t => t.id === p.qr_task_id && t.slug !== 'final-passcode-check')?.is_active !== 0).length / (progress.filter(p => { const t = qrTasks.find(x => x.id === p.qr_task_id); return t && t.is_active !== 0 && t.slug !== 'final-passcode-check'; }).length || 1)) * 100}%` }}
                         />
                       </div>
                     </Card>
@@ -2081,7 +2084,7 @@ export default function App() {
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {progress.filter(p => qrTasks.find(t => t.id === p.qr_task_id)?.is_active !== 0).map(p => (
+                    {progress.filter(p => { const t = qrTasks.find(x => x.id === p.qr_task_id); return t && t.is_active !== 0 && t.slug !== 'final-passcode-check'; }).map(p => (
                       <Card
                         key={p.qr_task_id}
                         className={cn(

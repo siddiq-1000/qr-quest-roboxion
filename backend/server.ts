@@ -516,13 +516,28 @@ app.post("/api/team/validate-qr", async (req, res) => {
   if (task.is_active === 0) return res.status(400).json({ error: "This task is inactive." });
 
   const allActiveTasks = await Task.find({ is_active: 1 }).sort({ sequence_order: 1 }).lean();
-  const taskIndex = allActiveTasks.findIndex(t => t._id.toString() === task._id.toString());
 
-  if (taskIndex > 0) {
-    const previousTask = allActiveTasks[taskIndex - 1];
-    const prevProgress = await Progress.findOne({ team_id: teamId, qr_task_id: previousTask._id });
-    if (!prevProgress || prevProgress.status !== 'completed') {
-      return res.status(403).json({ error: `You must complete ${previousTask.name} before scanning this QR code.` });
+  // Special case: Final Vault
+  if (slug === 'final-passcode-check') {
+    const otherTasks = allActiveTasks.filter(t => t.slug !== 'final-passcode-check');
+    for (const ot of otherTasks) {
+      const p = await Progress.findOne({ team_id: teamId, qr_task_id: ot._id });
+      if (!p || p.status !== 'completed') {
+        return res.status(403).json({ error: `You cannot access the Final Vault until you complete all other active tasks (Missing: ${ot.name}).` });
+      }
+    }
+  } else {
+    // Normal sequential check
+    const taskIndex = allActiveTasks.findIndex(t => t._id.toString() === task._id.toString());
+    if (taskIndex > 0) {
+      const previousTask = allActiveTasks[taskIndex - 1];
+      // Only enforce sequence if the previous task is not the final vault itself (just in case)
+      if (previousTask.slug !== 'final-passcode-check') {
+        const prevProgress = await Progress.findOne({ team_id: teamId, qr_task_id: previousTask._id });
+        if (!prevProgress || prevProgress.status !== 'completed') {
+          return res.status(403).json({ error: `You must complete ${previousTask.name} before scanning this QR code.` });
+        }
+      }
     }
   }
 
