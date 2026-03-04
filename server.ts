@@ -292,9 +292,6 @@ async function startServer() {
         db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run("secret_passcode", secret_passcode.toString());
       }
       if (game_status !== undefined) {
-        db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run("duration", duration.toString());
-      }
-      if (game_status !== undefined) {
         db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run("game_status", game_status);
         if (game_status === 'active') {
           db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run("game_start_time", new Date().toISOString());
@@ -639,16 +636,28 @@ async function startServer() {
     const pending = db.prepare("SELECT COUNT(*) as count FROM progress WHERE team_id = ? AND status != 'completed' AND status != 'pending_approval' AND qr_task_id IN (SELECT id FROM qr_tasks WHERE is_active = 1)").get(teamId) as any;
     if (pending.count === 0) {
       // Check if they are the first winner
-      const teamsProgress = db.prepare(`
-        SELECT team_id, SUM(CASE WHEN status != 'completed' THEN 1 ELSE 0 END) as pending_count 
-        FROM progress 
-        WHERE qr_task_id IN (SELECT id FROM qr_tasks WHERE is_active = 1)
-        GROUP BY team_id
+      const finishedTeams = db.prepare(`
+        SELECT p.team_id, MAX(p.updated_at) as finish_time
+        FROM progress p
+        WHERE p.team_id IN (
+          SELECT team_id 
+          FROM progress 
+          WHERE qr_task_id IN (SELECT id FROM qr_tasks WHERE is_active = 1)
+          GROUP BY team_id
+          HAVING SUM(CASE WHEN status != 'completed' THEN 1 ELSE 0 END) = 0
+        )
+        GROUP BY p.team_id
+        ORDER BY finish_time ASC
       `).all() as any[];
-      const finishedTeams = teamsProgress.filter(t => t.pending_count === 0);
-      const isWinner = finishedTeams.length === 1 && finishedTeams[0].team_id === teamId;
 
-      broadcast({ type: "TEAM_FINISHED", teamName: team?.name, isWinner });
+      const placementIndex = finishedTeams.findIndex(t => t.team_id === teamId);
+      const placement = placementIndex + 1; // 1st, 2nd, 3rd, etc.
+
+      if (placement > 0 && placement <= 3) {
+        broadcast({ type: "WINNER_ANNOUNCED", teamName: team?.name, placement: placement });
+      } else {
+        broadcast({ type: "TEAM_FINISHED", teamName: team?.name, isWinner: false });
+      }
     }
 
     res.json({ success: true, status: newStatus });

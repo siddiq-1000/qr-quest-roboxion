@@ -1,8 +1,11 @@
+/// <reference types="vite/client" />
 
 export interface Team {
   id: string;
   name: string;
   password?: string;
+  secret_character?: string | null;
+  secret_index?: number | null;
 }
 
 export interface Log {
@@ -68,6 +71,7 @@ export interface GameSettings {
   duration: string;
   game_status: 'setup' | 'active' | 'finished';
   game_start_time?: string;
+  secret_passcode?: string;
 }
 
 export interface SubTask {
@@ -80,6 +84,8 @@ export interface SubTask {
   is_completed?: number; // For team view
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -91,125 +97,136 @@ async function handleResponse<T>(response: Response): Promise<T> {
 export const api = {
   admin: {
     login: (credentials: any) =>
-      fetch('/api/admin/login', {
+      fetch(`${API_BASE_URL}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
       }).then(handleResponse<{ success: boolean; token: string; username: string }>),
 
-    getStats: () => fetch('/api/admin/stats').then(handleResponse<Stats>),
-    getLogs: () => fetch('/api/admin/logs').then(handleResponse<Log[]>),
-    getTeams: () => fetch('/api/admin/teams').then(handleResponse<Team[]>),
-    getProgress: () => fetch('/api/admin/progress').then(handleResponse<Progress[]>),
-    getQrTasks: () => fetch('/api/admin/qr-tasks').then(handleResponse<QRTask[]>),
-    getLeaderboard: () => fetch('/api/admin/leaderboard').then(handleResponse<LeaderboardItem[]>),
+    getStats: () => fetch(`${API_BASE_URL}/api/admin/stats`).then(handleResponse<Stats>),
+    getLogs: () => fetch(`${API_BASE_URL}/api/admin/logs`).then(handleResponse<Log[]>),
+    getTeams: () => fetch(`${API_BASE_URL}/api/admin/teams`).then(handleResponse<Team[]>),
+    getProgress: () => fetch(`${API_BASE_URL}/api/admin/progress`).then(handleResponse<Progress[]>),
+    getQrTasks: () => fetch(`${API_BASE_URL}/api/admin/qr-tasks`).then(handleResponse<QRTask[]>),
+    getLeaderboard: () => fetch(`${API_BASE_URL}/api/admin/leaderboard`).then(handleResponse<LeaderboardItem[]>),
 
     createTeam: (team: Partial<Team>) =>
-      fetch('/api/admin/teams', {
+      fetch(`${API_BASE_URL}/api/admin/teams`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(team),
       }).then(handleResponse<{ success: boolean; team: Team }>),
 
     updateTeam: (id: string, team: Partial<Team>) =>
-      fetch(`/api/admin/teams/${id}`, {
+      fetch(`${API_BASE_URL}/api/admin/teams/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(team),
       }).then(handleResponse<{ success: boolean }>),
 
     deleteTeam: (id: string) =>
-      fetch(`/api/admin/teams/${id}`, { method: 'DELETE' }).then(handleResponse<{ success: boolean }>),
+      fetch(`${API_BASE_URL}/api/admin/teams/${id}`, { method: 'DELETE' }).then(handleResponse<{ success: boolean }>),
 
     createTask: (task: Partial<QRTask>) =>
-      fetch('/api/admin/qr-tasks', {
+      fetch(`${API_BASE_URL}/api/admin/qr-tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(task),
       }).then(handleResponse<{ success: boolean; id: number }>),
 
     updateTask: (id: number, task: Partial<QRTask>) =>
-      fetch(`/api/admin/qr-tasks/${id}`, {
+      fetch(`${API_BASE_URL}/api/admin/qr-tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(task),
       }).then(handleResponse<{ success: boolean }>),
 
     deleteTask: (id: number) =>
-      fetch(`/api/admin/qr-tasks/${id}`, { method: 'DELETE' }).then(handleResponse<{ success: boolean }>),
+      fetch(`${API_BASE_URL}/api/admin/qr-tasks/${id}`, { method: 'DELETE' }).then(handleResponse<{ success: boolean }>),
 
-    getSubmissions: () => fetch('/api/admin/submissions').then(handleResponse<Submission[]>),
+    getSubmissions: () => fetch(`${API_BASE_URL}/api/admin/submissions`).then(handleResponse<Submission[]>),
     reviewSubmission: (id: number, status: 'approved' | 'rejected') =>
-      fetch(`/api/admin/submissions/${id}/review`, {
+      fetch(`${API_BASE_URL}/api/admin/submissions/${id}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       }).then(handleResponse<{ success: boolean }>),
 
-    getSubTasks: (taskId: number) => fetch(`/api/admin/qr-tasks/${taskId}/sub-tasks`).then(handleResponse<SubTask[]>),
+    getSubTasks: (taskId: number) => fetch(`${API_BASE_URL}/api/admin/qr-tasks/${taskId}/sub-tasks`).then(handleResponse<SubTask[]>),
     createSubTask: (taskId: number, formData: FormData) =>
-      fetch(`/api/admin/qr-tasks/${taskId}/sub-tasks`, {
+      fetch(`${API_BASE_URL}/api/admin/qr-tasks/${taskId}/sub-tasks`, {
         method: 'POST',
         body: formData,
       }).then(handleResponse<{ success: boolean; id: number }>),
     updateSubTask: (id: number, formData: FormData) =>
-      fetch(`/api/admin/sub-tasks/${id}`, {
+      fetch(`${API_BASE_URL}/api/admin/sub-tasks/${id}`, {
         method: 'PATCH',
         body: formData,
       }).then(handleResponse<{ success: boolean }>),
     deleteSubTask: (id: number) =>
-      fetch(`/api/admin/sub-tasks/${id}`, { method: 'DELETE' }).then(handleResponse<{ success: boolean }>),
+      fetch(`${API_BASE_URL}/api/admin/sub-tasks/${id}`, { method: 'DELETE' }).then(handleResponse<{ success: boolean }>),
 
-    getSettings: () => fetch('/api/admin/settings').then(handleResponse<GameSettings>),
+    getSettings: () => fetch(`${API_BASE_URL}/api/admin/settings`).then(handleResponse<GameSettings>),
     updateSettings: (settings: Partial<GameSettings>) =>
-      fetch('/api/admin/settings', {
+      fetch(`${API_BASE_URL}/api/admin/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       }).then(handleResponse<{ success: boolean }>),
 
-    resetGame: () => fetch('/api/admin/game/reset', { method: 'POST' }).then(handleResponse<{ success: boolean }>),
+    resetGame: () => fetch(`${API_BASE_URL}/api/admin/game/reset`, { method: 'POST' }).then(handleResponse<{ success: boolean }>),
 
-    resetLogs: () => fetch('/api/admin/logs/reset', { method: 'POST' }).then(handleResponse<{ success: boolean }>),
+    resetLogs: () => fetch(`${API_BASE_URL}/api/admin/logs/reset`, { method: 'POST' }).then(handleResponse<{ success: boolean }>),
   },
 
   team: {
     login: (credentials: any) =>
-      fetch('/api/team/login', {
+      fetch(`${API_BASE_URL}/api/team/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
       }).then(handleResponse<{ success: boolean; team: Team }>),
 
-    getProgress: (teamId: string) => fetch(`/api/team/${teamId}/progress`).then(handleResponse<Progress[]>),
+    getProgress: (teamId: string) => fetch(`${API_BASE_URL}/api/team/${teamId}/progress`).then(handleResponse<Progress[]>),
 
     validateQr: (slug: string) =>
-      fetch('/api/team/validate-qr', {
+      fetch(`${API_BASE_URL}/api/team/validate-qr`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug }),
       }).then(handleResponse<{ success: boolean; task: QRTask }>),
 
     scanQr: (teamId: string, qrTaskId: number) =>
-      fetch('/api/team/scan', {
+      fetch(`${API_BASE_URL}/api/team/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamId, qrTaskId }),
       }).then(handleResponse<{ success: boolean }>),
 
     submitTask: (formData: FormData) =>
-      fetch('/api/team/submit', {
+      fetch(`${API_BASE_URL}/api/team/submit`, {
         method: 'POST',
         body: formData,
       }).then(handleResponse<{ success: boolean }>),
 
     getSubTasks: (teamId: string, taskId: number) =>
-      fetch(`/api/team/${teamId}/tasks/${taskId}/sub-tasks`).then(handleResponse<SubTask[]>),
+      fetch(`${API_BASE_URL}/api/team/${teamId}/tasks/${taskId}/sub-tasks`).then(handleResponse<SubTask[]>),
     toggleSubTask: (subTaskId: number, teamId: string, is_completed: boolean) =>
-      fetch(`/api/team/sub-tasks/${subTaskId}/toggle`, {
+      fetch(`${API_BASE_URL}/api/team/sub-tasks/${subTaskId}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamId, is_completed }),
       }).then(handleResponse<{ success: boolean }>),
   }
+};
+
+export const getWsUrl = () => {
+  if (API_BASE_URL) {
+    const parsed = new URL(API_BASE_URL);
+    const protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${parsed.host}`;
+  }
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host;
+  return `${protocol}//${host}`;
 };

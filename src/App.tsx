@@ -16,7 +16,8 @@ import {
   Check,
   X,
   ImageIcon as ImageIconLucide,
-  ChevronRight
+  ChevronRight,
+  Key
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
@@ -203,7 +204,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [winnerTeam, setWinnerTeam] = useState<string | null>(null);
+  const [winnerTeam, setWinnerTeam] = useState<{ name: string, placement: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [adminTab, setAdminTab] = useState<string>('summary');
@@ -247,16 +248,22 @@ export default function App() {
       if (data.type === 'SETTINGS_UPDATE') {
         fetchSettings();
       }
+      if (data.type === 'WINNER_ANNOUNCED') {
+        const p = data.placement;
+        setWinnerTeam({ name: data.teamName, placement: p });
+
+        let msg = "";
+        if (p === 1) msg = `50% Team ${data.teamName} got it right!`;
+        else if (p === 2) msg = `Team ${data.teamName} got the second passcode right.`;
+        else if (p === 3) msg = `Team ${data.teamName} third password right.`;
+
+        const utterance = new SpeechSynthesisUtterance(msg);
+        utterance.rate = 0.9;
+        utterance.pitch = 1.1;
+        window.speechSynthesis.speak(utterance);
+      }
       if (data.type === 'TEAM_FINISHED') {
-        if (data.isWinner) {
-          setWinnerTeam(data.teamName);
-          const utterance = new SpeechSynthesisUtterance(`The first key has been successfully acquired by ${data.teamName}.`);
-          utterance.rate = 0.9;
-          utterance.pitch = 1.1;
-          window.speechSynthesis.speak(utterance);
-        } else {
-          showToast(`🎉 Notification: ${data.teamName} has completed all tasks!`, 'success');
-        }
+        showToast(`🎉 Notification: ${data.teamName} has completed all tasks!`, 'success');
       }
     };
 
@@ -782,6 +789,22 @@ export default function App() {
 
     const formData = new FormData(e.currentTarget);
 
+    // Final Task Passcode Check
+    const activeTasksCount = qrTasks.filter(t => t.is_active !== 0).length;
+    const completedTasksCount = progress.filter(p => p.status === 'completed' && qrTasks.find(t => t.id === p.qr_task_id)?.is_active !== 0).length;
+
+    if (activeTasksCount > 0 && completedTasksCount === activeTasksCount - 1 && settings?.secret_passcode) {
+      const enteredPasscode = (formData.get('final_passcode') as string || '').trim().toUpperCase();
+      const actualPasscode = settings.secret_passcode.trim().toUpperCase();
+
+      if (enteredPasscode !== actualPasscode) {
+        showToast('INCORRECT PASSCODE. The artifact remains locked.', 'error');
+        return; // Halt submission
+      }
+      // If passcode is correct, remove it from formData so api doesn't complain, though it should be fine.
+      formData.delete('final_passcode');
+    }
+
     try {
       const template = activeTask.form_template ? JSON.parse(activeTask.form_template) : [];
       if (template && template.length > 0) {
@@ -859,28 +882,38 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 p-6 text-center shadow-2xl backdrop-blur-md"
+            className={cn(
+              "fixed inset-0 z-[999] flex flex-col items-center justify-center p-6 text-center shadow-2xl backdrop-blur-md",
+              winnerTeam.placement === 1 ? "bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600" :
+                winnerTeam.placement === 2 ? "bg-gradient-to-br from-zinc-300 via-zinc-400 to-zinc-500" :
+                  "bg-gradient-to-br from-orange-400 via-orange-500 to-orange-700"
+            )}
             onClick={() => setWinnerTeam(null)} // Click anywhere to dismiss eventually
           >
             <motion.div
               initial={{ scale: 0.8, y: 50 }}
               animate={{ scale: 1, y: 0 }}
               transition={{ type: "spring", bounce: 0.5, duration: 0.8 }}
-              className="rounded-3xl border-4 border-yellow-200 bg-black/20 p-12 backdrop-blur-xl"
+              className="rounded-3xl border-4 border-white/20 bg-black/20 p-12 backdrop-blur-xl"
             >
-              <Trophy size={80} className="mx-auto mb-6 text-yellow-200 drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]" />
+              <Trophy size={80} className={cn(
+                "mx-auto mb-6 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]",
+                winnerTeam.placement === 1 ? "text-yellow-300" :
+                  winnerTeam.placement === 2 ? "text-zinc-100" :
+                    "text-orange-200"
+              )} />
               <h1 className="mb-4 text-5xl font-black uppercase tracking-widest text-white drop-shadow-lg">
-                We have a Winner!
+                {winnerTeam.placement === 1 ? "1st Place Winner!" : winnerTeam.placement === 2 ? "2nd Place Winner!" : "3rd Place Winner!"}
               </h1>
-              <p className="text-2xl font-bold text-yellow-100 drop-shadow-md">
-                The first key has been successfully acquired by
+              <p className="text-2xl font-bold text-white/90 drop-shadow-md">
+                {winnerTeam.placement === 1 ? "50% Team got it right:" : winnerTeam.placement === 2 ? "Got the second passcode right:" : "Third password right:"}
               </p>
               <div className="mt-8 inline-block transform rounded-xl bg-white/10 px-8 py-4 backdrop-blur-sm transition-transform hover:scale-105 hover:bg-white/20">
                 <p className="font-mono text-5xl font-black text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">
-                  {winnerTeam}
+                  {winnerTeam.name}
                 </p>
               </div>
-              <p className="mt-12 text-sm text-yellow-100/70">Click anywhere to dismiss</p>
+              <p className="mt-12 text-sm text-white/70">Click anywhere to dismiss</p>
             </motion.div>
           </motion.div>
         )}
@@ -1026,6 +1059,7 @@ export default function App() {
                     <option value="summary">Summary & Progress</option>
                     <option value="logs">Activity Logs</option>
                     <option value="setup">Game Setup</option>
+                    <option value="submissions">Submissions</option>
                     <option value="leaderboard">Leaderboard</option>
                     <optgroup label="Tasks">
                       {qrTasks.map(t => (
@@ -1033,6 +1067,7 @@ export default function App() {
                       ))}
                     </optgroup>
                     <option value="add-task">+ Create New Task</option>
+                    <option value="create-passcode">+ Create your key or passcode</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-zinc-500">
                     <ChevronRight size={16} className="rotate-90" />
@@ -1207,8 +1242,11 @@ export default function App() {
                       const sequence_order = parseInt(formData.get('sequence_order') as string);
                       const image_required = formData.get('image_required') ? 1 : 0;
                       const next_clue_hint = formData.get('next_clue_hint') as string;
+                      const section_name = formData.get('section_name') as string;
+                      const is_checkpoint = formData.get('is_checkpoint') ? 1 : 0;
+                      const is_active = formData.get('is_active') ? 1 : 0;
                       try {
-                        const response = await api.admin.createTask({ name, slug, task_description, sequence_order, image_required, next_clue_hint });
+                        const response = await api.admin.createTask({ name, slug, task_description, sequence_order, image_required, next_clue_hint, section_name, is_checkpoint, is_active });
                         await fetchQrTasks();
                         if (response && response.id) {
                           setAdminTab(`task-${response.id}`);
@@ -1244,6 +1282,68 @@ export default function App() {
                       <input autoComplete="off" name="next_clue_hint" placeholder="Next Clue Hint (Shown exactly after completing this task)" className="rounded-lg border border-zinc-200 px-3 py-2 text-sm sm:col-span-4" />
                       <div className="sm:col-span-4 flex justify-end gap-2">
                         <Button type="submit">Create Task</Button>
+                      </div>
+                    </form>
+                  </Card>
+                </div>
+              )}
+
+              {adminTab === 'create-passcode' && (
+                <div className="space-y-8">
+                  <h2 className="flex items-center gap-2 text-lg font-bold">
+                    <Key size={20} /> Create Final Unlocking Passcode Task
+                  </h2>
+                  <Card className="border-amber-200 bg-amber-50/30">
+                    <p className="mb-4 text-sm text-zinc-600">
+                      This creates a specialized final task. Teams scanning this will be prompted to enter the complete 4-character passcode they have gathered from other teams.
+                    </p>
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      try {
+                        const formData = new FormData(e.currentTarget);
+                        const passcode = formData.get('secret_passcode') as string;
+                        if (passcode.length !== 4) throw new Error("Passcode must be exactly 4 characters");
+                        await api.admin.updateSettings({ secret_passcode: passcode.toUpperCase() });
+
+                        const response = await api.admin.createTask({
+                          name: "The Final Vault",
+                          slug: "final-passcode-check",
+                          task_description: "You have reached the end. Enter the final 4-character passcode gathered from all teams.",
+                          sequence_order: 999,
+                          image_required: 0,
+                          next_clue_hint: "Congratulations, you won!",
+                          section_name: "Finale",
+                          is_checkpoint: 0,
+                          is_active: 1
+                        });
+
+                        if (response && response.id) {
+                          await api.admin.updateTask(response.id, {
+                            form_template: JSON.stringify([{ id: 'passcode_entry', label: 'Enter 4-Letter Passcode', type: 'text' }])
+                          });
+                          await fetchQrTasks();
+                          await fetchSettings();
+                          setAdminTab('summary');
+                          showToast("Final passcode task spawned successfully!", "success");
+                        }
+                      } catch (err: any) {
+                        showToast(err.message || 'Error creating task. The slug "final-passcode-check" might already exist.', 'error');
+                      }
+                    }} className="space-y-4">
+                      <div>
+                        <label className="text-[10px] font-bold uppercase text-zinc-500">Global Settings: Final Passcode</label>
+                        <input autoComplete="off"
+                          name="secret_passcode"
+                          defaultValue={settings?.secret_passcode || ''}
+                          placeholder="e.g. WXYZ"
+                          maxLength={4}
+                          className="mt-1 block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-lg font-mono tracking-[0.5em] uppercase focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                          required
+                        />
+                        <p className="mt-1 text-xs text-zinc-400">This 4-letter code will be split among the teams you create.</p>
+                      </div>
+                      <div className="flex justify-end">
+                        <Button type="submit" className="bg-amber-500 hover:bg-amber-600 text-white">Spawn Final Passcode Task</Button>
                       </div>
                     </form>
                   </Card>
@@ -1691,6 +1791,21 @@ export default function App() {
                       </div>
 
                       <div>
+                        <label className="text-xs font-bold uppercase text-zinc-400">Final Secret Passcode (4 Characters Max)</label>
+                        <input autoComplete="off"
+                          name="secret_passcode"
+                          type="text"
+                          maxLength={4}
+                          defaultValue={settings?.secret_passcode || ''}
+                          placeholder="e.g. WXYZ"
+                          className="mt-1 w-full font-mono uppercase tracking-widest rounded-lg border border-zinc-200 px-4 py-2 text-sm focus:border-black focus:outline-none"
+                        />
+                        <p className="mt-1 text-[10px] text-zinc-400">
+                          One character from this code is randomly assigned to each new team created. They must collaborate to find all 4!
+                        </p>
+                      </div>
+
+                      <div>
                         <label className="text-xs font-bold uppercase text-zinc-400">Game Status</label>
                         <select
                           name="game_status"
@@ -1810,6 +1925,25 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+
+                  {user.secret_character && user.secret_index && (
+                    <Card className="border-amber-200 bg-amber-50/50">
+                      <div className="flex flex-col items-center justify-center text-center py-4">
+                        <span className="mb-2 text-xs font-bold uppercase tracking-widest text-amber-600">Your Official Key Piece</span>
+                        <div className="text-sm font-medium text-amber-900 mb-4 max-w-lg mx-auto">
+                          You hold exactly one piece of the final passcode. Find other teams to share clues and assemble the full 4-character code to win!
+                        </div>
+                        <div className="flex flex-col items-center bg-white border border-amber-200 rounded-xl px-12 py-6 shadow-sm">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-1">
+                            Character #{user.secret_index}
+                          </span>
+                          <span className="text-6xl font-black font-mono tracking-tighter text-amber-500">
+                            {user.secret_character}
+                          </span>
+                        </div>
+                      </div>
+                    </Card>
+                  )}
 
                   <div className="grid gap-6 md:grid-cols-3">
                     <Card className="md:col-span-2">
@@ -2097,8 +2231,10 @@ export default function App() {
                         <div className="space-y-4">
                           {template.map((field) => (
                             <div key={field.id} className="space-y-2">
-                              <label className="text-sm font-bold">{field.label}</label>
-                              {field.type === 'longtext' ? (
+                              <label className={cn("text-sm font-bold", field.id === 'passcode_entry' && "text-amber-900 text-lg uppercase tracking-widest")}>{field.label}</label>
+                              {field.id === 'passcode_entry' ? (
+                                <input autoComplete="off" type="text" name={field.id} maxLength={4} placeholder="____" className="w-full rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-4 text-center font-mono text-3xl font-black uppercase tracking-[1em] text-amber-900 shadow-inner focus:border-amber-600 focus:outline-none focus:ring-4 focus:ring-amber-500/20" required />
+                              ) : field.type === 'longtext' ? (
                                 <textarea autoComplete="off" name={field.id} className="w-full rounded-lg border border-zinc-200 p-3 text-sm focus:border-black focus:outline-none" required rows={4} />
                               ) : field.type === 'number' ? (
                                 <input autoComplete="off" type="number" name={field.id} className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-black focus:outline-none" required />
@@ -2159,6 +2295,25 @@ export default function App() {
                       </div>
                     </div>
                   )}
+
+                  {qrTasks && progress && qrTasks.filter(t => t.is_active !== 0).length > 0 &&
+                    progress.filter(p => p.status === 'completed' && qrTasks.find(t => t.id === p.qr_task_id)?.is_active !== 0).length === qrTasks.filter(t => t.is_active !== 0).length - 1 &&
+                    settings?.secret_passcode && settings.secret_passcode.length > 0 && (
+                      <div className="space-y-2 rounded-xl border-2 border-amber-500 bg-amber-50 p-6 shadow-sm">
+                        <label className="text-lg font-black text-amber-900 uppercase tracking-tight">Final Unlock Passcode</label>
+                        <p className="text-sm text-amber-800 leading-snug mb-4">
+                          This is your final task! To complete it and finish the treasure hunt, you must collaborate with other teams to assemble the 4-character master passcode.
+                        </p>
+                        <input autoComplete="off"
+                          type="text"
+                          name="final_passcode"
+                          maxLength={4}
+                          placeholder="____"
+                          className="w-full rounded-lg border-2 border-amber-300 bg-white px-4 py-4 text-center font-mono text-3xl font-black uppercase tracking-[1em] text-amber-900 shadow-inner focus:border-amber-600 focus:outline-none focus:ring-4 focus:ring-amber-500/20"
+                          required
+                        />
+                      </div>
+                    )}
 
                   <Button type="submit" className="w-full py-4 text-lg">
                     Submit Task
