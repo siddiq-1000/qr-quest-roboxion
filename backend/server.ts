@@ -19,17 +19,9 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Configure multer for image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
-  },
-});
-const upload = multer({ storage });
+// Configure multer for uploads to memory (for base64 conversion)
+const storage = multer.memoryStorage();
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Database Connection
 let isConnected = false;
@@ -364,7 +356,11 @@ app.get("/api/admin/qr-tasks/:id/sub-tasks", async (req, res) => {
 
 app.post("/api/admin/qr-tasks/:id/sub-tasks", upload.single('image'), async (req, res) => {
   const { title, description, is_required } = req.body;
-  const image_path = req.file ? `/uploads/${req.file.filename}` : null;
+  let image_path = null;
+  if (req.file) {
+    const b64 = Buffer.from(req.file.buffer).toString("base64");
+    image_path = `data:${req.file.mimetype};base64,${b64}`;
+  }
   try {
     const subTask = await SubTask.create({ qr_task_id: req.params.id, title, description, image_path, is_required: is_required === 'true' ? 1 : 0 });
     res.json({ success: true, id: subTask.id });
@@ -375,7 +371,11 @@ app.post("/api/admin/qr-tasks/:id/sub-tasks", upload.single('image'), async (req
 
 app.patch("/api/admin/sub-tasks/:id", upload.single('image'), async (req, res) => {
   const { title, description, is_required } = req.body;
-  const image_path = req.file ? `/uploads/${req.file.filename}` : null;
+  let image_path = null;
+  if (req.file) {
+    const b64 = Buffer.from(req.file.buffer).toString("base64");
+    image_path = `data:${req.file.mimetype};base64,${b64}`;
+  }
   try {
     const updateData: any = { title, description, is_required: is_required === 'true' ? 1 : 0 };
     if (image_path) updateData.image_path = image_path;
@@ -425,6 +425,9 @@ app.post("/api/admin/submissions/:id/review", async (req, res) => {
       { team_id: submission.team_id, qr_task_id: submission.qr_task_id },
       { status: progressStatus, updated_at: new Date().toISOString() }
     );
+
+    broadcast({ type: "SUBMISSION_REVIEWED", team_id: submission.team_id, status: req.body.status, task_id: submission.qr_task_id });
+
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: "Failed" }); }
 });
@@ -565,7 +568,11 @@ app.post("/api/team/scan", async (req, res) => {
 app.post("/api/team/submit", upload.single("image"), async (req, res) => {
   const { teamId, qrTaskId, taskData } = req.body;
   const timestamp = new Date().toISOString();
-  const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
+  let imagePath = null;
+  if (req.file) {
+    const b64 = Buffer.from(req.file.buffer).toString("base64");
+    imagePath = `data:${req.file.mimetype};base64,${b64}`;
+  }
 
   const task = await Task.findById(qrTaskId);
   const isCheckpoint = task && task.is_checkpoint === 1;

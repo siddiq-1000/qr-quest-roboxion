@@ -289,6 +289,14 @@ export default function App() {
       if (data.type === 'TEAM_FINISHED') {
         showToast(`🎉 Notification: ${data.teamName} has completed all tasks!`, 'success');
       }
+      if (data.type === 'SUBMISSION_REVIEWED' && user?.type === 'team' && data.team_id === user.id) {
+        if (data.status === 'approved') {
+          showToast(`✅ Your submission was APPROVED! This task is completed.`, 'success');
+        } else {
+          showToast(`❌ Your submission was REJECTED. Please try again.`, 'error');
+        }
+        fetchProgress();
+      }
     };
 
     return () => socket.close();
@@ -970,8 +978,8 @@ export default function App() {
         <nav className="sticky top-0 z-50 border-b border-zinc-200 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black text-white">
-                <QrCode size={18} />
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-transparent">
+                <img src="/logo.png" alt="QR Quest Logo" className="h-full w-full object-contain" />
               </div>
               <span className="font-bold tracking-tight">QR QUEST</span>
             </div>
@@ -1772,14 +1780,21 @@ export default function App() {
                     {submissions.map(sub => (
                       <Card key={sub.id} className="overflow-hidden p-0">
                         {sub.image_path ? (
-                          <div className="aspect-video w-full overflow-hidden bg-zinc-100">
-                            <img
-                              src={sub.image_path.startsWith('http') ? sub.image_path : `${API_BASE_URL}${sub.image_path}`}
-                              alt={`Submission from ${sub.team_name}`}
-                              className="h-full w-full object-cover"
-                              referrerPolicy="no-referrer"
-                            />
-                          </div>
+                          sub.image_path.startsWith('data:image/') || sub.image_path.match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
+                            <div className="aspect-video w-full overflow-hidden bg-zinc-100">
+                              <img
+                                src={sub.image_path.startsWith('data:') || sub.image_path.startsWith('http') ? sub.image_path : `${API_BASE_URL}${sub.image_path}`}
+                                alt={`Submission from ${sub.team_name}`}
+                                className="h-full w-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex flex-col aspect-video w-full items-center justify-center bg-zinc-100 text-zinc-600 gap-2">
+                              <FileSearch size={32} />
+                              <a href={sub.image_path.startsWith('data:') || sub.image_path.startsWith('http') ? sub.image_path : `${API_BASE_URL}${sub.image_path}`} download={`submission_${sub.team_name}`} className="text-sm font-bold text-blue-600 hover:underline">Download Proof File</a>
+                            </div>
+                          )
                         ) : (
                           <div className="flex aspect-video w-full items-center justify-center bg-zinc-100 text-zinc-400">
                             <ImageIcon size={48} />
@@ -2349,25 +2364,35 @@ export default function App() {
 
                   {activeTask.image_required !== 0 && (
                     <div className="space-y-2">
-                      <label className="text-sm font-bold">Upload Image Proof</label>
+                      <label className="text-sm font-bold">Upload Proof (Image, Doc, PDF)</label>
                       <div className="flex items-center justify-center rounded-lg border-2 border-dashed border-zinc-200 p-8 transition-colors hover:border-zinc-300 relative overflow-hidden">
                         <label className="flex w-full cursor-pointer flex-col items-center gap-2 text-center">
                           {imagePreview ? (
-                            <img src={imagePreview} alt="Preview" className="max-h-48 rounded-lg object-contain" />
+                            <div className="flex flex-col items-center gap-2 max-h-48 overflow-hidden object-contain">
+                              {imagePreview.startsWith('blob:http') ? (
+                                <img src={imagePreview} alt="Preview" className="max-h-40 rounded-lg object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              ) : (
+                                <div className="text-emerald-600 font-bold bg-emerald-50 px-4 py-2 rounded">File Selected</div>
+                              )}
+                            </div>
                           ) : (
                             <>
                               <div className="rounded-full bg-zinc-100 p-3">
                                 <Upload size={24} className="text-zinc-500" />
                               </div>
-                              <span className="text-sm font-medium text-zinc-600">Click to upload image</span>
-                              <span className="text-xs text-zinc-400">JPG, PNG or GIF up to 5MB</span>
+                              <span className="text-sm font-medium text-zinc-600">Click to upload file</span>
+                              <span className="text-xs text-zinc-400">Max 5MB (Any format)</span>
                             </>
                           )}
-                          <input autoComplete="off" type="file" name="image" className="hidden" accept="image/*" required
+                          <input autoComplete="off" type="file" name="image" className="hidden" accept="*" required
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                setImagePreview(URL.createObjectURL(file));
+                                if (file.type.startsWith('image/')) {
+                                  setImagePreview(URL.createObjectURL(file));
+                                } else {
+                                  setImagePreview('file-selected');
+                                }
                               } else {
                                 setImagePreview(null);
                               }
