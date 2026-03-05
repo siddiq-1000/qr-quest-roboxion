@@ -432,6 +432,14 @@ app.post("/api/admin/submissions/:id/review", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed" }); }
 });
 
+app.delete("/api/admin/submissions/:id", async (req, res) => {
+  try {
+    const submission = await Submission.findByIdAndDelete(req.params.id);
+    if (!submission) return res.status(404).json({ error: "Not found" });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: "Failed to delete submission" }); }
+});
+
 app.post("/api/admin/logs/reset", async (req, res) => {
   await Log.deleteMany({});
   broadcast({ type: "LOG_RESET" });

@@ -152,6 +152,8 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       }).then(handleResponse<{ success: boolean }>),
+    deleteSubmission: (id: string | number) =>
+      fetch(`${API_BASE_URL}/api/admin/submissions/${id}`, { method: 'DELETE' }).then(handleResponse<{ success: boolean }>),
 
     getSubTasks: (taskId: number) => fetch(`${API_BASE_URL}/api/admin/qr-tasks/${taskId}/sub-tasks`).then(handleResponse<SubTask[]>),
     createSubTask: (taskId: number, formData: FormData) =>
