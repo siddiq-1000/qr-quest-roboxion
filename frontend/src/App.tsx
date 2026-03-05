@@ -17,12 +17,15 @@ import {
   X,
   ImageIcon as ImageIconLucide,
   ChevronRight,
-  Key
+  Key,
+  Bell,
+  EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import jsQR from 'jsqr';
+import confetti from 'canvas-confetti';
 import { api, Team, Log, Progress, QRTask, Stats, LeaderboardItem, GameSettings, Submission, SubTask, API_BASE_URL } from './services/api';
 
 function cn(...inputs: ClassValue[]) {
@@ -216,7 +219,14 @@ export default function App() {
   const [success, setSuccess] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [winnerTeam, setWinnerTeam] = useState<{ name: string, placement: number } | null>(null);
+  const [isGameWon, setIsGameWon] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [notifications, setNotifications] = useState<{ id: string, message: string, hint?: string, passcode?: string, timestamp: string }[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showNextLocation, setShowNextLocation] = useState(false);
+  const [passcodeEntry, setPasscodeEntry] = useState('');
+  const [passcodeStatus, setPasscodeStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
 
   const [adminTab, setAdminTab] = useState<string>('summary');
   const [teamTab, setTeamTab] = useState<'dashboard' | 'tasks'>('dashboard');
@@ -288,10 +298,20 @@ export default function App() {
       }
       if (data.type === 'TEAM_FINISHED') {
         showToast(`🎉 Notification: ${data.teamName} has completed all tasks!`, 'success');
+        if (user?.type === 'team' && data.teamName === user?.name) {
+          setIsGameWon(true);
+        }
       }
       if (data.type === 'SUBMISSION_REVIEWED' && user?.type === 'team' && data.team_id === user.id) {
         if (data.status === 'approved') {
           showToast(`✅ Your submission was APPROVED! This task is completed.`, 'success');
+          setNotifications(prev => [{
+            id: Date.now().toString(),
+            message: `Task ${data.task_name || 'Submission'} was Approved.`,
+            hint: data.hint,
+            passcode: data.passcode,
+            timestamp: new Date().toISOString()
+          }, ...prev]);
         } else {
           showToast(`❌ Your submission was REJECTED. Please try again.`, 'error');
         }
@@ -777,6 +797,7 @@ export default function App() {
       fetchProgress();
       fetchLogs();
       fetchStats();
+      fetchLeaderboard();
       alert('Game has been reset!');
     } catch (err: any) {
       alert(err.message || 'Error resetting game');
@@ -899,7 +920,10 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 font-sans text-zinc-900">
+    <div className={cn(
+      "min-h-screen font-sans transition-colors duration-1000",
+      isGameWon ? "bg-yellow-400 text-amber-900" : "bg-zinc-50 text-zinc-900"
+    )}>
       {/* Success Message Overlay */}
       <AnimatePresence>
         {success && (
@@ -994,6 +1018,67 @@ export default function App() {
               <span className="font-bold tracking-tight">QR QUEST</span>
             </div>
             <div className="flex items-center gap-4">
+              {user.type === 'team' && (
+                <div className="relative">
+                  <Button variant="outline" size="sm" onClick={() => setShowNotifications(!showNotifications)} className="h-8 px-2 relative">
+                    <Bell size={16} />
+                    {notifications.length > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                        {notifications.length}
+                      </span>
+                    )}
+                  </Button>
+                  <AnimatePresence>
+                    {showNotifications && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute right-0 top-full mt-2 w-80 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl z-50 origin-top-right"
+                      >
+                        <div className="bg-zinc-50 border-b border-zinc-100 px-4 py-3 flex items-center justify-between">
+                          <h3 className="font-bold text-sm">Notifications</h3>
+                          {notifications.length > 0 && (
+                            <button onClick={() => setNotifications([])} className="text-[10px] font-bold text-zinc-400 hover:text-zinc-600 uppercase tracking-widest">
+                              Clear All
+                            </button>
+                          )}
+                        </div>
+                        <div className="max-h-96 overflow-y-auto">
+                          {notifications.length === 0 ? (
+                            <div className="px-4 py-8 text-center text-sm text-zinc-500">
+                              No new notifications
+                            </div>
+                          ) : (
+                            <div className="divide-y divide-zinc-100">
+                              {notifications.map(n => (
+                                <div key={n.id} className="p-4 hover:bg-zinc-50 transition-colors">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs font-bold text-emerald-600">{n.message}</span>
+                                    <span className="text-[10px] text-zinc-400 font-mono text-right">{new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  </div>
+                                  {n.hint && (
+                                    <div className="mt-2 rounded bg-amber-50 p-2 border border-amber-100">
+                                      <span className="block text-[10px] font-bold uppercase tracking-widest text-amber-600 mb-1">Next Hint</span>
+                                      <p className="text-xs text-amber-900">{n.hint}</p>
+                                    </div>
+                                  )}
+                                  {n.passcode && (
+                                    <div className="mt-2 rounded bg-blue-50 p-2 border border-blue-100">
+                                      <span className="block text-[10px] font-bold uppercase tracking-widest text-blue-600 mb-1">Passcode Part</span>
+                                      <p className="text-xl font-mono font-black tracking-[0.2em] text-blue-900 text-center">{n.passcode}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
               <span className="text-sm font-medium text-zinc-500">
                 {user.name}
               </span>
@@ -2008,6 +2093,22 @@ export default function App() {
                   animate={{ opacity: 1 }}
                   className="space-y-8"
                 >
+                  {isGameWon && (
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="rounded-3xl border-4 border-amber-500 bg-yellow-300 p-8 text-center shadow-2xl"
+                    >
+                      <Trophy size={64} className="mx-auto mb-4 text-amber-600 animate-bounce" />
+                      <h2 className="text-4xl font-black uppercase tracking-tighter text-amber-900 md:text-5xl">
+                        You Solved the Puzzle!
+                      </h2>
+                      <p className="mt-4 text-lg font-bold text-amber-800">
+                        Congratulations {user.name}! Your team has successfully completed all tasks and unlocked the final vault.
+                      </p>
+                    </motion.div>
+                  )}
+
                   {/* Game Status Header */}
                   <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-black p-6 text-white shadow-xl">
                     <div className="flex items-center gap-4">
@@ -2041,6 +2142,100 @@ export default function App() {
                         <span className="text-[10px] font-bold uppercase text-zinc-400">Total Clues</span>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Next Hint & Passcode Section */}
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Next Hint Spoiler Box */}
+                    {(() => {
+                      const currentActiveTask = qrTasks.find(t => t.id === progress.find(p => p.status === 'started')?.qr_task_id);
+                      const hintText = currentActiveTask?.next_clue_hint || currentActiveTask?.task_description;
+                      if (!hintText && settings?.game_status === 'active') return null;
+                      return (
+                        <Card className="border-indigo-200 bg-indigo-50/50 relative overflow-hidden">
+                          <div className="flex flex-col items-center justify-center text-center h-full min-h-[150px]">
+                            <span className="mb-2 text-xs font-bold uppercase tracking-widest text-indigo-600">Next Location Hint</span>
+                            <div className="relative w-full flex-grow flex items-center justify-center z-10">
+                              {showNextLocation ? (
+                                <motion.div initial={{ opacity: 0, filter: 'blur(10px)' }} animate={{ opacity: 1, filter: 'blur(0px)' }} className="bg-white border border-indigo-200 rounded-xl px-4 py-6 shadow-sm w-full cursor-pointer" onClick={() => setShowNextLocation(false)}>
+                                  <p className="text-sm font-medium text-indigo-900">{hintText}</p>
+                                </motion.div>
+                              ) : (
+                                <div className="bg-indigo-100/50 border border-indigo-200/50 rounded-xl px-4 py-6 w-full flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-100 transition-colors" onClick={() => setShowNextLocation(true)}>
+                                  <EyeOff size={24} className="text-indigo-400 mb-2" />
+                                  <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">Tap to Reveal Spoiler</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })()}
+
+                    {/* Passcode Box (Only visible when all strictly active tasks are completed) */}
+                    {(() => {
+                      const activeTasksCount = qrTasks.filter(t => t.is_active !== 0).length;
+                      const completedTasksCount = progress.filter(p => p.status === 'completed' && qrTasks.find(t => t.id === p.qr_task_id)?.is_active !== 0).length;
+
+                      // Condition: they must have completed all active tasks except maybe 1 (if the final vault itself is active but not completed)
+                      // Or simply, they need all clues to unlock. Let's show it if they completed at least (Total - 1) tasks or all tasks.
+                      if (activeTasksCount > 0 && completedTasksCount < activeTasksCount - 1) return null;
+
+                      return (
+                        <Card className="border-emerald-200 bg-emerald-50/50">
+                          <div className="flex flex-col items-center justify-center text-center h-full min-h-[150px]">
+                            <span className="mb-2 text-xs font-bold uppercase tracking-widest text-emerald-600">Final Vault Passcode</span>
+                            <p className="text-[10px] text-emerald-800 mb-4 max-w-[250px]">
+                              Enter the 4-digit secret passcode assembled from clues to claim the ultimate reward!
+                            </p>
+                            <form onSubmit={async (e) => {
+                              e.preventDefault();
+                              if (passcodeEntry.length !== 4) return;
+                              setPasscodeStatus('checking');
+                              try {
+                                const res = await api.team.verifyPasscode(user.id, passcodeEntry);
+                                if (res.success) {
+                                  setPasscodeStatus('success');
+                                  setIsGameWon(true);
+                                  showToast('PASSCODE ACCEPTED! YOU WIN!', 'success');
+                                  confetti({
+                                    particleCount: 150,
+                                    spread: 70,
+                                    origin: { y: 0.6 },
+                                    colors: ['#Fbbf24', '#F59E0B', '#D97706', '#FFFFFF']
+                                  });
+                                } else {
+                                  setPasscodeStatus('error');
+                                  showToast(res.error || 'Incorrect passcode', 'error');
+                                }
+                              } catch (err) {
+                                setPasscodeStatus('error');
+                              }
+                            }} className="flex flex-col items-center w-full max-w-[200px]">
+                              <input autoComplete="off"
+                                type="text"
+                                maxLength={4}
+                                value={passcodeEntry}
+                                onChange={(e) => {
+                                  setPasscodeEntry(e.target.value.toUpperCase());
+                                  setPasscodeStatus('idle');
+                                }}
+                                placeholder="----"
+                                className={cn(
+                                  "w-full text-center text-3xl font-mono font-black tracking-[0.5em] rounded-xl border-2 py-3 focus:outline-none transition-colors",
+                                  passcodeStatus === 'error' ? "border-red-400 bg-red-50 text-red-900" :
+                                    passcodeStatus === 'success' ? "border-emerald-500 bg-emerald-100 text-emerald-900" :
+                                      "border-emerald-200 focus:border-emerald-500 bg-white"
+                                )}
+                              />
+                              <Button type="submit" disabled={passcodeEntry.length !== 4 || passcodeStatus === 'checking'} className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white">
+                                {passcodeStatus === 'checking' ? 'Verifying...' : 'Submit Passcode'}
+                              </Button>
+                            </form>
+                          </div>
+                        </Card>
+                      );
+                    })()}
                   </div>
 
                   {user.secret_character && user.secret_index && (
@@ -2388,46 +2583,26 @@ export default function App() {
 
                   {activeTask.image_required !== 0 && (
                     <div className="space-y-2">
-                      <label className="text-sm font-bold">Upload Proof (Image, Doc, PDF)</label>
-                      <div className="flex items-center justify-center rounded-lg border-2 border-dashed border-zinc-200 p-8 transition-colors hover:border-zinc-300 relative overflow-hidden">
-                        <label className="flex w-full cursor-pointer flex-col items-center gap-2 text-center">
-                          {imagePreview ? (
-                            <div className="flex flex-col items-center gap-2 max-h-48 overflow-hidden object-contain">
-                              {imagePreview.startsWith('blob:http') ? (
-                                <img src={imagePreview} alt="Preview" className="max-h-40 rounded-lg object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                              ) : (
-                                <div className="text-emerald-600 font-bold bg-emerald-50 px-4 py-2 rounded">File Selected</div>
-                              )}
-                            </div>
-                          ) : (
-                            <>
-                              <div className="rounded-full bg-zinc-100 p-3">
-                                <Upload size={24} className="text-zinc-500" />
-                              </div>
-                              <span className="text-sm font-medium text-zinc-600">Click to upload file</span>
-                              <span className="text-xs text-zinc-400">Max 5MB (Any format)</span>
-                            </>
-                          )}
-                          <input autoComplete="off" type="file" name="image" className="hidden" accept="*" required
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                if (file.type.startsWith('image/')) {
-                                  setImagePreview(URL.createObjectURL(file));
-                                } else {
-                                  setImagePreview('file-selected');
-                                }
-                              } else {
-                                setImagePreview(null);
-                              }
-                            }}
-                          />
+                      <label className="text-sm font-bold">Submit Proof to Google Drive</label>
+                      <div className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-6 bg-zinc-50">
+                        <p className="text-sm text-zinc-600">
+                          1. Click the button below to open the team Drive.<br />
+                          2. Upload your proof image or document.<br />
+                          3. Return here and confirm your upload to submit.
+                        </p>
+                        <a
+                          href="https://drive.google.com/drive/folders/1q84lFXD667dQP0FSBhNIYSrDo4H4kcj8?usp=sharing"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 14.5L13.7 3.5a2 2 0 0 0-3.4 0L2.5 14.5a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                          Open Google Drive Folder
+                        </a>
+                        <label className="mt-2 flex items-center gap-2">
+                          <input autoComplete="off" type="checkbox" className="h-4 w-4 rounded border-zinc-300 text-black focus:ring-black" required />
+                          <span className="text-sm font-medium">I have uploaded my proof to Google Drive</span>
                         </label>
-                        {imagePreview && (
-                          <button type="button" onClick={(e) => { e.preventDefault(); setImagePreview(null); }} className="absolute top-2 right-2 bg-white rounded-full p-1 shadow hover:bg-zinc-100 transition-colors pointer-events-auto z-10">
-                            <X size={16} />
-                          </button>
-                        )}
                       </div>
                     </div>
                   )}

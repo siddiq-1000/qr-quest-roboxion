@@ -426,7 +426,17 @@ app.post("/api/admin/submissions/:id/review", async (req, res) => {
       { status: progressStatus, updated_at: new Date().toISOString() }
     );
 
-    broadcast({ type: "SUBMISSION_REVIEWED", team_id: submission.team_id, status: req.body.status, task_id: submission.qr_task_id });
+    const task = await Task.findById(submission.qr_task_id);
+
+    broadcast({
+      type: "SUBMISSION_REVIEWED",
+      team_id: submission.team_id,
+      status: req.body.status,
+      task_id: submission.qr_task_id,
+      hint: task?.next_clue_hint,
+      passcode: task?.unlock_passcode,
+      task_name: task?.name
+    });
 
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: "Failed" }); }
@@ -444,6 +454,49 @@ app.post("/api/admin/logs/reset", async (req, res) => {
   await Log.deleteMany({});
   broadcast({ type: "LOG_RESET" });
   res.json({ success: true });
+});
+
+app.post("/api/admin/game/reset", async (req, res) => {
+  try {
+    // Keep teams and tasks, but clear everything else
+    await Progress.deleteMany({});
+
+    // Re-initialize progress tracking for all teams to active tasks
+    const tasks = await Task.find({ is_active: 1 }).lean();
+    const teams = await Team.find().lean();
+    if (tasks.length > 0 && teams.length > 0) {
+      const progressDocs = [];
+      for (const team of teams) {
+        for (const task of tasks) {
+          progressDocs.push({ team_id: team.id, qr_task_id: task._id, status: 'pending' });
+        }
+      }
+      await Progress.insertMany(progressDocs);
+    }
+
+    await Submission.deleteMany({});
+    await Log.deleteMany({});
+    await TeamSubTaskProgress.deleteMany({});
+
+    // Update game status to setup mode
+    await Setting.findOneAndUpdate(
+      { key: 'game_status' },
+      { value: 'setup' },
+      { upsert: true }
+    );
+    await Setting.findOneAndUpdate(
+      { key: 'game_start_time' },
+      { value: '' },
+      { upsert: true }
+    );
+
+    broadcast({ type: "LOG_RESET" });
+    broadcast({ type: "SETTINGS_UPDATE" });
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to reset game" });
+  }
 });
 
 app.get("/api/admin/leaderboard", async (req, res) => {
@@ -584,7 +637,7 @@ app.post("/api/team/submit", upload.single("image"), async (req, res) => {
 
   const task = await Task.findById(qrTaskId);
   const isCheckpoint = task && task.is_checkpoint === 1;
-  const newStatus = (isCheckpoint || imagePath) ? 'pending_approval' : 'completed';
+  const newStatus = (isCheckpoint || task?.image_required !== 0 || imagePath) ? 'pending_approval' : 'completed';
 
   await Submission.create({ team_id: teamId, qr_task_id: qrTaskId, image_path: imagePath, task_data: taskData, status: newStatus, timestamp });
   await Progress.findOneAndUpdate({ team_id: teamId, qr_task_id: qrTaskId }, { status: newStatus, updated_at: timestamp });
@@ -612,6 +665,17 @@ app.post("/api/team/submit", upload.single("image"), async (req, res) => {
   }
 
   res.json({ success: true, status: newStatus });
+});
+
+app.post("/api/team/verify-passcode", async (req, res) => {
+  const { teamId, passcode } = req.body;
+  const setting = await Setting.findOne({ key: 'secret_passcode' });
+  if (setting && setting.value && setting.value.toUpperCase() === passcode.toUpperCase()) {
+    // Correct passcode
+    res.json({ success: true });
+  } else {
+    res.json({ success: false, error: "Incorrect passcode." });
+  }
 });
 
 // Port Config

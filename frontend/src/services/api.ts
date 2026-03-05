@@ -199,6 +199,13 @@ export const api = {
         body: JSON.stringify({ teamId, slug }),
       }).then(handleResponse<{ success: boolean; task: QRTask }>),
 
+    verifyPasscode: (teamId: string, passcode: string) =>
+      fetch(`${API_BASE_URL}/api/team/verify-passcode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, passcode }),
+      }).then(handleResponse<{ success: boolean; error?: string }>),
+
     scanQr: (teamId: string, qrTaskId: number) =>
       fetch(`${API_BASE_URL}/api/team/scan`, {
         method: 'POST',
