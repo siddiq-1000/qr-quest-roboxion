@@ -891,6 +891,11 @@ export default function App() {
     formData.append('teamId', user.id);
     formData.append('qrTaskId', activeTask.id.toString());
 
+    // Add image if selected
+    if (fileInputRef.current?.files?.[0]) {
+      formData.append('image', fileInputRef.current.files[0]);
+    }
+
     try {
       await api.team.submitTask(formData);
       setActiveTask(null);
@@ -2583,26 +2588,43 @@ export default function App() {
 
                   {activeTask.image_required !== 0 && (
                     <div className="space-y-2">
-                      <label className="text-sm font-bold">Submit Proof to Google Drive</label>
-                      <div className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-6 bg-zinc-50">
-                        <p className="text-sm text-zinc-600">
-                          1. Click the button below to open the team Drive.<br />
-                          2. Upload your proof image or document.<br />
-                          3. Return here and confirm your upload to submit.
-                        </p>
-                        <a
-                          href="https://drive.google.com/drive/folders/1q84lFXD667dQP0FSBhNIYSrDo4H4kcj8?usp=sharing"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 14.5L13.7 3.5a2 2 0 0 0-3.4 0L2.5 14.5a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                          Open Google Drive Folder
-                        </a>
-                        <label className="mt-2 flex items-center gap-2">
-                          <input autoComplete="off" type="checkbox" className="h-4 w-4 rounded border-zinc-300 text-black focus:ring-black" required />
-                          <span className="text-sm font-medium">I have uploaded my proof to Google Drive</span>
-                        </label>
+                      <label className="text-sm font-bold">Proof Image Requirements</label>
+                      <div className="flex flex-col items-center justify-center gap-4 rounded-lg border-2 border-dashed border-zinc-200 p-8 text-center bg-zinc-50 transition-colors hover:border-black hover:bg-zinc-100 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                        {imagePreview ? (
+                          <div className="relative w-full overflow-hidden rounded-lg">
+                            <img src={imagePreview} alt="Preview" className="h-48 w-full object-cover" />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100">
+                              <span className="text-sm font-bold text-white flex items-center gap-2"><ImageIcon size={16} /> Change Image</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex bg-white h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 shadow-sm border border-zinc-200">
+                              <Camera size={24} className="text-zinc-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-zinc-700 leading-tight">Click to upload proof</p>
+                              <p className="mt-1 text-xs text-zinc-500">Must be a clear photo showing completion</p>
+                            </div>
+                          </>
+                        )}
+                        <input autoComplete="off"
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*,application/pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => setImagePreview(reader.result as string);
+                              reader.readAsDataURL(file);
+                            } else {
+                              setImagePreview(null);
+                            }
+                          }}
+                          required={activeTask.image_required !== 0}
+                        />
                       </div>
                     </div>
                   )}
