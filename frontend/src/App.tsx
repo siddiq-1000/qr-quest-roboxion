@@ -1780,7 +1780,7 @@ export default function App() {
                     {submissions.map(sub => (
                       <Card key={sub.id} className="overflow-hidden p-0">
                         {sub.image_path ? (
-                          sub.image_path.startsWith('data:image/') || sub.image_path.match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
+                          sub.image_path.startsWith('data:image/') || String(sub.image_path).match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
                             <div className="aspect-video w-full overflow-hidden bg-zinc-100">
                               <img
                                 src={sub.image_path.startsWith('data:') || sub.image_path.startsWith('http') ? sub.image_path : `${API_BASE_URL}${sub.image_path}`}
@@ -1796,8 +1796,9 @@ export default function App() {
                             </div>
                           )
                         ) : (
-                          <div className="flex aspect-video w-full items-center justify-center bg-zinc-100 text-zinc-400">
-                            <ImageIcon size={48} />
+                          <div className="flex flex-col aspect-video w-full items-center justify-center bg-zinc-50 text-zinc-400 gap-2 border-b border-zinc-100">
+                            <ImageIcon size={32} className="opacity-50" />
+                            <span className="text-xs font-medium uppercase tracking-widest text-zinc-400">No File Uploaded</span>
                           </div>
                         )}
                         <div className="p-4">
