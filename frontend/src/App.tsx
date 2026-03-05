@@ -1796,9 +1796,17 @@ export default function App() {
                             </div>
                           )
                         ) : (
-                          <div className="flex flex-col aspect-video w-full items-center justify-center bg-zinc-50 text-zinc-400 gap-2 border-b border-zinc-100">
+                          <div className="flex flex-col items-center justify-center gap-3 border-b border-zinc-100 bg-zinc-50 p-6 text-zinc-400">
                             <ImageIcon size={32} className="opacity-50" />
-                            <span className="text-xs font-medium uppercase tracking-widest text-zinc-400">No File Uploaded</span>
+                            <span className="text-xs font-medium uppercase tracking-widest text-zinc-400">Verify in Google Drive</span>
+                            <a
+                              href="https://drive.google.com/drive/folders/1q84lFXD667dQP0FSBhNIYSrDo4H4kcj8?usp=sharing"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-100 px-4 py-2 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-200"
+                            >
+                              Open Drive Folder
+                            </a>
                           </div>
                         )}
                         <div className="p-4">
@@ -2365,46 +2373,26 @@ export default function App() {
 
                   {activeTask.image_required !== 0 && (
                     <div className="space-y-2">
-                      <label className="text-sm font-bold">Upload Proof (Image, Doc, PDF)</label>
-                      <div className="flex items-center justify-center rounded-lg border-2 border-dashed border-zinc-200 p-8 transition-colors hover:border-zinc-300 relative overflow-hidden">
-                        <label className="flex w-full cursor-pointer flex-col items-center gap-2 text-center">
-                          {imagePreview ? (
-                            <div className="flex flex-col items-center gap-2 max-h-48 overflow-hidden object-contain">
-                              {imagePreview.startsWith('blob:http') ? (
-                                <img src={imagePreview} alt="Preview" className="max-h-40 rounded-lg object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                              ) : (
-                                <div className="text-emerald-600 font-bold bg-emerald-50 px-4 py-2 rounded">File Selected</div>
-                              )}
-                            </div>
-                          ) : (
-                            <>
-                              <div className="rounded-full bg-zinc-100 p-3">
-                                <Upload size={24} className="text-zinc-500" />
-                              </div>
-                              <span className="text-sm font-medium text-zinc-600">Click to upload file</span>
-                              <span className="text-xs text-zinc-400">Max 5MB (Any format)</span>
-                            </>
-                          )}
-                          <input autoComplete="off" type="file" name="image" className="hidden" accept="*" required
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                if (file.type.startsWith('image/')) {
-                                  setImagePreview(URL.createObjectURL(file));
-                                } else {
-                                  setImagePreview('file-selected');
-                                }
-                              } else {
-                                setImagePreview(null);
-                              }
-                            }}
-                          />
+                      <label className="text-sm font-bold">Submit Proof to Google Drive</label>
+                      <div className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-6 bg-zinc-50">
+                        <p className="text-sm text-zinc-600">
+                          1. Click the button below to open the team Drive.<br />
+                          2. Upload your proof image or document.<br />
+                          3. Return here and confirm your upload to submit.
+                        </p>
+                        <a
+                          href="https://drive.google.com/drive/folders/1q84lFXD667dQP0FSBhNIYSrDo4H4kcj8?usp=sharing"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 14.5L13.7 3.5a2 2 0 0 0-3.4 0L2.5 14.5a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                          Open Google Drive Folder
+                        </a>
+                        <label className="mt-2 flex items-center gap-2">
+                          <input autoComplete="off" type="checkbox" className="h-4 w-4 rounded border-zinc-300 text-black focus:ring-black" required />
+                          <span className="text-sm font-medium">I have uploaded my proof to Google Drive</span>
                         </label>
-                        {imagePreview && (
-                          <button type="button" onClick={(e) => { e.preventDefault(); setImagePreview(null); }} className="absolute top-2 right-2 bg-white rounded-full p-1 shadow hover:bg-zinc-100 transition-colors pointer-events-auto z-10">
-                            <X size={16} />
-                          </button>
-                        )}
                       </div>
                     </div>
                   )}
