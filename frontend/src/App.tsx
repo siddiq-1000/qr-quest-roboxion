@@ -1861,19 +1861,19 @@ export default function App() {
                               })()}
                             </div>
                           </div>
-                          <div className="flex gap-2 border-t border-zinc-100 pt-4 mt-4">
-                            {sub.status === 'pending_approval' && (
-                              <>
-                                <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" size="sm" onClick={() => handleReviewSubmission(sub.id, 'approved')}>
-                                  Approve
-                                </Button>
-                                <Button className="flex-1 bg-amber-500 hover:bg-amber-600 text-white" size="sm" onClick={() => handleReviewSubmission(sub.id, 'rejected')}>
-                                  Reject
-                                </Button>
-                              </>
+                          <div className="flex flex-wrap gap-2 border-t border-zinc-100 pt-4 mt-4">
+                            {sub.status !== 'approved' && (
+                              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white min-w-[140px]" size="sm" onClick={() => handleReviewSubmission(sub.id, 'approved')}>
+                                Yes (Next round)
+                              </Button>
                             )}
-                            <Button variant="danger" className="flex-1" size="sm" onClick={() => handleDeleteSubmission(sub.id)}>
-                              Delete
+                            {sub.status !== 'rejected' && (
+                              <Button className="flex-1 bg-amber-500 hover:bg-amber-600 text-white min-w-[140px]" size="sm" onClick={() => handleReviewSubmission(sub.id, 'rejected')}>
+                                No (Stay in this round)
+                              </Button>
+                            )}
+                            <Button variant="danger" className="flex-1 min-w-[140px]" size="sm" onClick={() => handleDeleteSubmission(sub.id)}>
+                              Delete Submission
                             </Button>
                           </div>
                         </div>

@@ -584,7 +584,7 @@ app.post("/api/team/submit", upload.single("image"), async (req, res) => {
 
   const task = await Task.findById(qrTaskId);
   const isCheckpoint = task && task.is_checkpoint === 1;
-  const newStatus = isCheckpoint ? 'pending_approval' : 'completed';
+  const newStatus = (isCheckpoint || imagePath) ? 'pending_approval' : 'completed';
 
   await Submission.create({ team_id: teamId, qr_task_id: qrTaskId, image_path: imagePath, task_data: taskData, status: newStatus, timestamp });
   await Progress.findOneAndUpdate({ team_id: teamId, qr_task_id: qrTaskId }, { status: newStatus, updated_at: timestamp });
